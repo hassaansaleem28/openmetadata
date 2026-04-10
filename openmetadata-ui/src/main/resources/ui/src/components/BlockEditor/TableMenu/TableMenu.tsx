@@ -24,6 +24,81 @@ interface TableMenuProps {
   editor: Editor;
 }
 
+const TABLE_WRAPPER_SELECTOR = '.tableWrapper';
+const TABLE_CELL_SELECTOR = 'td, th';
+const SELECTED_TABLE_CELL_SELECTOR = 'td.selectedCell, th.selectedCell';
+
+const buildRect = (
+  top: number,
+  left: number,
+  right: number,
+  bottom: number
+): DOMRect => {
+  return {
+    x: left,
+    y: top,
+    top,
+    left,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+    toJSON: () => ({
+      x: left,
+      y: top,
+      top,
+      left,
+      right,
+      bottom,
+      width: right - left,
+      height: bottom - top,
+    }),
+  } as DOMRect;
+};
+
+const getSelectedCellsRect = (tableWrapper: Element): DOMRect | null => {
+  const selectedCells = tableWrapper.querySelectorAll<HTMLElement>(
+    SELECTED_TABLE_CELL_SELECTOR
+  );
+
+  if (!selectedCells.length) {
+    return null;
+  }
+
+  let top = Number.POSITIVE_INFINITY;
+  let left = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+
+  selectedCells.forEach((cell) => {
+    const rect = cell.getBoundingClientRect();
+
+    top = Math.min(top, rect.top);
+    left = Math.min(left, rect.left);
+    right = Math.max(right, rect.right);
+    bottom = Math.max(bottom, rect.bottom);
+  });
+
+  return buildRect(top, left, right, bottom);
+};
+
+const getReferenceClientRect =
+  (target: Element) => (): DOMRect => {
+    const cell = target.closest<HTMLElement>(TABLE_CELL_SELECTOR);
+
+    if (cell) {
+      return cell.getBoundingClientRect();
+    }
+
+    const tableWrapper = target.closest<HTMLElement>(TABLE_WRAPPER_SELECTOR);
+
+    if (!tableWrapper) {
+      return target.getBoundingClientRect();
+    }
+
+    return getSelectedCellsRect(tableWrapper) ?? tableWrapper.getBoundingClientRect();
+  };
+
 const TableMenu = (props: TableMenuProps) => {
   const { editor } = props;
   const { view, isEditable } = editor;
@@ -31,16 +106,23 @@ const TableMenu = (props: TableMenuProps) => {
   const tableMenuPopup = useRef<Instance | null>(null);
 
   const handleMouseDown = useCallback((event: MouseEvent) => {
-    const target = event.target as HTMLElement;
-    const table = target?.closest('.tableWrapper');
+    const { target } = event;
 
-    if (table?.contains(target)) {
-      tableMenuPopup.current?.setProps({
-        getReferenceClientRect: () => table.getBoundingClientRect(),
-      });
-
-      tableMenuPopup.current?.show();
+    if (!(target instanceof Element)) {
+      return;
     }
+
+    const table = target.closest(TABLE_WRAPPER_SELECTOR);
+
+    if (!table) {
+      return;
+    }
+
+    tableMenuPopup.current?.setProps({
+      getReferenceClientRect: getReferenceClientRect(target),
+    });
+
+    tableMenuPopup.current?.show();
   }, []);
 
   useEffect(() => {
