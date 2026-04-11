@@ -153,12 +153,16 @@ const TableMenu = (props: TableMenuProps) => {
   }, [isEditable]);
 
   useEffect(() => {
+    if (!isEditable) {
+      return;
+    }
+
     document.addEventListener('mousedown', handleMouseDown);
 
     return () => {
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [handleMouseDown]);
+  }, [handleMouseDown, isEditable]);
 
   return (
     <div className="table-menu" ref={menuRef}>

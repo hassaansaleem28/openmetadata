@@ -27,7 +27,6 @@ const mockShow = jest.fn();
 const mockHide = jest.fn();
 const mockDestroy = jest.fn();
 const mockRun = jest.fn();
-let removeSpy: jest.SpyInstance;
 
 const createRect = (rect: Partial<DOMRect>): DOMRect => {
   return {
@@ -68,17 +67,33 @@ const mockEditor = {
   chain: mockChain,
 } as unknown as Editor;
 
+const renderTableMenu = () => {
+  const rendered = render(<TableMenu editor={mockEditor} />);
+
+  const safeUnmount = () => {
+    const calls = (tippy as unknown as jest.Mock).mock.calls;
+    const latestCall = calls[calls.length - 1];
+    const tippyOptions = latestCall?.[1] as
+      | {
+          content?: HTMLElement;
+        }
+      | undefined;
+    const menuContent = tippyOptions?.content;
+
+    if (menuContent && !menuContent.isConnected) {
+      rendered.container.appendChild(menuContent);
+    }
+
+    rendered.unmount();
+  };
+
+  return {
+    ...rendered,
+    safeUnmount,
+  };
+};
+
 describe('TableMenu', () => {
-  beforeAll(() => {
-    removeSpy = jest
-      .spyOn(HTMLElement.prototype, 'remove')
-      .mockImplementation(() => undefined);
-  });
-
-  afterAll(() => {
-    removeSpy.mockRestore();
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
     (tippy as unknown as jest.Mock).mockReturnValue({
@@ -90,152 +105,166 @@ describe('TableMenu', () => {
   });
 
   it('anchors menu to clicked table cell instead of full table bounds', () => {
-    render(<TableMenu editor={mockEditor} />);
+    const { safeUnmount } = renderTableMenu();
 
     const tableWrapper = document.createElement('div');
     tableWrapper.className = 'tableWrapper';
 
-    const table = document.createElement('table');
-    const row = document.createElement('tr');
-    const cell = document.createElement('td');
-    const content = document.createElement('span');
+    try {
+      const table = document.createElement('table');
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      const content = document.createElement('span');
 
-    row.appendChild(cell);
-    cell.appendChild(content);
-    table.appendChild(row);
-    tableWrapper.appendChild(table);
-    document.body.appendChild(tableWrapper);
+      row.appendChild(cell);
+      cell.appendChild(content);
+      table.appendChild(row);
+      tableWrapper.appendChild(table);
+      document.body.appendChild(tableWrapper);
 
-    const wrapperRect = createRect({
-      x: 20,
-      y: 10,
-      top: 10,
-      left: 20,
-      right: 620,
-      bottom: 410,
-      width: 600,
-      height: 400,
-    });
+      const wrapperRect = createRect({
+        x: 20,
+        y: 10,
+        top: 10,
+        left: 20,
+        right: 620,
+        bottom: 410,
+        width: 600,
+        height: 400,
+      });
 
-    const cellRect = createRect({
-      x: 280,
-      y: 180,
-      top: 180,
-      left: 280,
-      right: 460,
-      bottom: 212,
-      width: 180,
-      height: 32,
-    });
+      const cellRect = createRect({
+        x: 280,
+        y: 180,
+        top: 180,
+        left: 280,
+        right: 460,
+        bottom: 212,
+        width: 180,
+        height: 32,
+      });
 
-    jest
-      .spyOn(tableWrapper, 'getBoundingClientRect')
-      .mockReturnValue(wrapperRect);
-    jest.spyOn(cell, 'getBoundingClientRect').mockReturnValue(cellRect);
+      jest
+        .spyOn(tableWrapper, 'getBoundingClientRect')
+        .mockReturnValue(wrapperRect);
+      jest.spyOn(cell, 'getBoundingClientRect').mockReturnValue(cellRect);
 
-    content.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      content.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
-    expect(mockSetProps).toHaveBeenCalledTimes(1);
-    expect(mockShow).toHaveBeenCalledTimes(1);
+      expect(mockSetProps).toHaveBeenCalledTimes(1);
+      expect(mockShow).toHaveBeenCalledTimes(1);
 
-    const tippyProps = mockSetProps.mock.calls[0][0] as {
-      getReferenceClientRect: () => DOMRect;
-    };
+      const tippyProps = mockSetProps.mock.calls[0][0] as {
+        getReferenceClientRect: () => DOMRect;
+      };
 
-    expect(tippyProps.getReferenceClientRect()).toEqual(cellRect);
-    expect(tippyProps.getReferenceClientRect()).not.toEqual(wrapperRect);
-
-    tableWrapper.remove();
+      expect(tippyProps.getReferenceClientRect()).toEqual(cellRect);
+      expect(tippyProps.getReferenceClientRect()).not.toEqual(wrapperRect);
+    } finally {
+      tableWrapper.remove();
+      safeUnmount();
+    }
   });
 
   it('anchors to selected-cells bounding area when click target is table wrapper', () => {
-    render(<TableMenu editor={mockEditor} />);
+    const { safeUnmount } = renderTableMenu();
 
     const tableWrapper = document.createElement('div');
     tableWrapper.className = 'tableWrapper';
 
-    const firstSelectedCell = document.createElement('td');
-    firstSelectedCell.className = 'selectedCell';
+    try {
+      const firstSelectedCell = document.createElement('td');
+      firstSelectedCell.className = 'selectedCell';
 
-    const secondSelectedCell = document.createElement('td');
-    secondSelectedCell.className = 'selectedCell';
+      const secondSelectedCell = document.createElement('td');
+      secondSelectedCell.className = 'selectedCell';
 
-    tableWrapper.appendChild(firstSelectedCell);
-    tableWrapper.appendChild(secondSelectedCell);
-    document.body.appendChild(tableWrapper);
+      tableWrapper.appendChild(firstSelectedCell);
+      tableWrapper.appendChild(secondSelectedCell);
+      document.body.appendChild(tableWrapper);
 
-    const firstRect = createRect({
-      top: 100,
-      left: 200,
-      right: 250,
-      bottom: 140,
-      width: 50,
-      height: 40,
-    });
+      const firstRect = createRect({
+        top: 100,
+        left: 200,
+        right: 250,
+        bottom: 140,
+        width: 50,
+        height: 40,
+      });
 
-    const secondRect = createRect({
-      top: 130,
-      left: 260,
-      right: 330,
-      bottom: 170,
-      width: 70,
-      height: 40,
-    });
+      const secondRect = createRect({
+        top: 130,
+        left: 260,
+        right: 330,
+        bottom: 170,
+        width: 70,
+        height: 40,
+      });
 
-    jest
-      .spyOn(firstSelectedCell, 'getBoundingClientRect')
-      .mockReturnValue(firstRect);
-    jest
-      .spyOn(secondSelectedCell, 'getBoundingClientRect')
-      .mockReturnValue(secondRect);
+      jest
+        .spyOn(firstSelectedCell, 'getBoundingClientRect')
+        .mockReturnValue(firstRect);
+      jest
+        .spyOn(secondSelectedCell, 'getBoundingClientRect')
+        .mockReturnValue(secondRect);
 
-    tableWrapper.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      tableWrapper.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true })
+      );
 
-    const tippyProps = mockSetProps.mock.calls[0][0] as {
-      getReferenceClientRect: () => DOMRect;
-    };
-    const rect = tippyProps.getReferenceClientRect();
+      const tippyProps = mockSetProps.mock.calls[0][0] as {
+        getReferenceClientRect: () => DOMRect;
+      };
+      const rect = tippyProps.getReferenceClientRect();
 
-    expect(rect.top).toBe(100);
-    expect(rect.left).toBe(200);
-    expect(rect.right).toBe(330);
-    expect(rect.bottom).toBe(170);
-    expect(rect.width).toBe(130);
-    expect(rect.height).toBe(70);
-
-    tableWrapper.remove();
+      expect(rect.top).toBe(100);
+      expect(rect.left).toBe(200);
+      expect(rect.right).toBe(330);
+      expect(rect.bottom).toBe(170);
+      expect(rect.width).toBe(130);
+      expect(rect.height).toBe(70);
+    } finally {
+      tableWrapper.remove();
+      safeUnmount();
+    }
   });
 
   it('falls back to table wrapper bounds when no selected cells exist', () => {
-    render(<TableMenu editor={mockEditor} />);
+    const { safeUnmount } = renderTableMenu();
 
     const tableWrapper = document.createElement('div');
     tableWrapper.className = 'tableWrapper';
-    document.body.appendChild(tableWrapper);
 
-    const wrapperRect = createRect({
-      x: 32,
-      y: 48,
-      top: 48,
-      left: 32,
-      right: 672,
-      bottom: 448,
-      width: 640,
-      height: 400,
-    });
+    try {
+      document.body.appendChild(tableWrapper);
 
-    jest
-      .spyOn(tableWrapper, 'getBoundingClientRect')
-      .mockReturnValue(wrapperRect);
+      const wrapperRect = createRect({
+        x: 32,
+        y: 48,
+        top: 48,
+        left: 32,
+        right: 672,
+        bottom: 448,
+        width: 640,
+        height: 400,
+      });
 
-    tableWrapper.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      jest
+        .spyOn(tableWrapper, 'getBoundingClientRect')
+        .mockReturnValue(wrapperRect);
 
-    const tippyProps = mockSetProps.mock.calls[0][0] as {
-      getReferenceClientRect: () => DOMRect;
-    };
+      tableWrapper.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true })
+      );
 
-    expect(tippyProps.getReferenceClientRect()).toEqual(wrapperRect);
+      const tippyProps = mockSetProps.mock.calls[0][0] as {
+        getReferenceClientRect: () => DOMRect;
+      };
 
-    tableWrapper.remove();
+      expect(tippyProps.getReferenceClientRect()).toEqual(wrapperRect);
+    } finally {
+      tableWrapper.remove();
+      safeUnmount();
+    }
   });
 });
