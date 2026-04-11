@@ -128,7 +128,9 @@ describe('TableMenu', () => {
       height: 32,
     });
 
-    jest.spyOn(tableWrapper, 'getBoundingClientRect').mockReturnValue(wrapperRect);
+    jest
+      .spyOn(tableWrapper, 'getBoundingClientRect')
+      .mockReturnValue(wrapperRect);
     jest.spyOn(cell, 'getBoundingClientRect').mockReturnValue(cellRect);
 
     content.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -180,8 +182,12 @@ describe('TableMenu', () => {
       height: 40,
     });
 
-    jest.spyOn(firstSelectedCell, 'getBoundingClientRect').mockReturnValue(firstRect);
-    jest.spyOn(secondSelectedCell, 'getBoundingClientRect').mockReturnValue(secondRect);
+    jest
+      .spyOn(firstSelectedCell, 'getBoundingClientRect')
+      .mockReturnValue(firstRect);
+    jest
+      .spyOn(secondSelectedCell, 'getBoundingClientRect')
+      .mockReturnValue(secondRect);
 
     tableWrapper.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
@@ -218,7 +224,9 @@ describe('TableMenu', () => {
       height: 400,
     });
 
-    jest.spyOn(tableWrapper, 'getBoundingClientRect').mockReturnValue(wrapperRect);
+    jest
+      .spyOn(tableWrapper, 'getBoundingClientRect')
+      .mockReturnValue(wrapperRect);
 
     tableWrapper.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
