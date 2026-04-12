@@ -12,6 +12,7 @@
  */
 import Icon from '@ant-design/icons/lib/components/Icon';
 import { Tooltip } from 'antd';
+import { ReactComponent as IconCluster } from '../../../assets/svg/icon-cluster.svg';
 import { ReactComponent as IconDistribution } from '../../../assets/svg/icon-distribution.svg';
 import { ReactComponent as IconKey } from '../../../assets/svg/icon-key.svg';
 import { ReactComponent as IconSort } from '../../../assets/svg/icon-sort.svg';
@@ -58,7 +59,7 @@ const ConstraintIcon = ({
         };
       case ConstraintType.ClusterKey:
         return {
-          icon: IconDistribution,
+          icon: IconCluster,
           title: t('label.entity-key', {
             entity: t('label.cluster'),
           }),

@@ -12,8 +12,8 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import { DEFAULT_ENTITY_PERMISSION } from '../../../utils/PermissionsUtils';
 import { ConstraintType, Table } from '../../../generated/entity/data/table';
+import { DEFAULT_ENTITY_PERMISSION } from '../../../utils/PermissionsUtils';
 import { tableConstraintRendererBasedOnType } from '../../../utils/TableUtils';
 import TableConstraints from './TableConstraints';
 
@@ -53,15 +53,19 @@ jest.mock('../../../utils/TableUtils', () => ({
     )),
 }));
 
-jest.mock('./TableConstraintsModal/TableConstraintsModal.component', () => () => (
-  <div />
-));
+jest.mock(
+  './TableConstraintsModal/TableConstraintsModal.component',
+  () => () => <div />
+);
 
-jest.mock('../../../components/Customization/GenericProvider/GenericProvider', () => ({
-  useGenericContext: jest
-    .fn()
-    .mockImplementation(() => mockGenericContextProps),
-}));
+jest.mock(
+  '../../../components/Customization/GenericProvider/GenericProvider',
+  () => ({
+    useGenericContext: jest
+      .fn()
+      .mockImplementation(() => mockGenericContextProps),
+  })
+);
 
 const mockTableConstraintRendererBasedOnType =
   tableConstraintRendererBasedOnType as jest.MockedFunction<
@@ -76,7 +80,9 @@ describe('TableConstraints', () => {
   it('renders cluster key constraints in table details', () => {
     render(<TableConstraints renderAsExpandableCard={false} />);
 
-    expect(screen.getByTestId(`${ConstraintType.ClusterKey}-container`)).toBeInTheDocument();
+    expect(
+      screen.getByTestId(`${ConstraintType.ClusterKey}-container`)
+    ).toBeInTheDocument();
     expect(mockTableConstraintRendererBasedOnType).toHaveBeenCalledWith(
       ConstraintType.ClusterKey,
       ['Entity_ID', 'Entity_Type']
