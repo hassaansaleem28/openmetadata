@@ -127,7 +127,6 @@ const TableConstraintsModal = ({
 
     try {
       setIsLoading(true);
-      await form.validateFields();
       const foreignConstraintFilteredData = foreignConstraints
         .filter((obj) => !Object.values(obj).includes(undefined))
         .map((item) => ({
@@ -156,8 +155,6 @@ const TableConstraintsModal = ({
       ];
 
       await onSave(allConstraintsData);
-    } catch (_) {
-      // Nothing here
     } finally {
       setIsLoading(false);
     }
@@ -236,19 +233,19 @@ const TableConstraintsModal = ({
       }
     );
 
-    const filteredConstraints = !isEmpty(constraintFormData?.foreign)
-      ? constraintFormData?.foreign.map((item) => ({
-          columns: item.columns?.[0],
-          relationshipType: item.relationshipType,
-          referredColumns: item.referredColumns?.[0],
-        }))
-      : [
+    const filteredConstraints = isEmpty(constraintFormData?.foreign)
+      ? [
           {
             columns: undefined,
             relationshipType: undefined,
             referredColumns: undefined,
           },
-        ];
+        ]
+      : constraintFormData?.foreign.map((item) => ({
+          columns: item.columns?.[0],
+          relationshipType: item.relationshipType,
+          referredColumns: item.referredColumns?.[0],
+        }));
 
     form.setFieldsValue({
       foreignConstraints: filteredConstraints,
