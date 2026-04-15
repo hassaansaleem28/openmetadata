@@ -126,7 +126,14 @@
     }
 
     .tableWrapper *::selection {
-      color: @text-color;
+      color: @white;
+      background-color: @primary-color;
+    }
+
+    /* FOR Firefox */
+    .tableWrapper *::-moz-selection {
+      color: @white;
+      background-color: @primary-color;
     }
 
     blockquote {
