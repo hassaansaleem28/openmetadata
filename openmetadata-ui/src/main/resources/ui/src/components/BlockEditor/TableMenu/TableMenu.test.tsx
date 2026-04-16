@@ -151,13 +151,8 @@ describe('TableMenu', () => {
         height: 32,
       });
 
-<<<<<<< HEAD
-      tableWrapper.getBoundingClientRect = jest.fn(() => wrapperRect);
-      cell.getBoundingClientRect = jest.fn(() => cellRect);
-=======
       mockBoundingClientRect(tableWrapper, wrapperRect);
       mockBoundingClientRect(cell, cellRect);
->>>>>>> a8a1ed21e2 (refactor & run lint tests)
 
       content.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
