@@ -144,10 +144,8 @@ describe('TableMenu', () => {
         height: 32,
       });
 
-      jest
-        .spyOn(tableWrapper, 'getBoundingClientRect')
-        .mockReturnValue(wrapperRect);
-      jest.spyOn(cell, 'getBoundingClientRect').mockReturnValue(cellRect);
+      tableWrapper.getBoundingClientRect = jest.fn(() => wrapperRect);
+      cell.getBoundingClientRect = jest.fn(() => cellRect);
 
       content.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
