@@ -82,7 +82,7 @@ const getSelectedCellsRect = (tableWrapper: Element): DOMRect | null => {
   return buildRect(top, left, right, bottom);
 };
 
-const getReferenceClientRect = (target: Element) => (): DOMRect => {
+const getReferenceRect = (target: Element): DOMRect => {
   const cell = target.closest<HTMLElement>(TABLE_CELL_SELECTOR);
 
   if (cell) {
@@ -119,8 +119,10 @@ const TableMenu = (props: TableMenuProps) => {
       return;
     }
 
+    const referenceRect = getReferenceRect(target);
+
     tableMenuPopup.current?.setProps({
-      getReferenceClientRect: getReferenceClientRect(target),
+      getReferenceClientRect: () => referenceRect,
     });
 
     tableMenuPopup.current?.show();
