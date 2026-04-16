@@ -113,19 +113,17 @@ const TableMenu = (props: TableMenuProps) => {
       return;
     }
 
-    const tableWrapper = target.closest(TABLE_WRAPPER_SELECTOR);
+    const tableWrapper = target.closest<HTMLElement>(TABLE_WRAPPER_SELECTOR);
 
     if (!tableWrapper) {
       return;
     }
 
-    const referenceElement =
-      target.closest<HTMLElement>(TABLE_CELL_SELECTOR) ??
-      target.closest<HTMLElement>(TABLE_WRAPPER_SELECTOR) ??
-      target;
+    const tableCell = target.closest<HTMLElement>(TABLE_CELL_SELECTOR);
+    const referenceElement = tableCell ?? tableWrapper ?? target;
 
     tableMenuPopup.current?.setProps({
-      getReferenceClientRect: () => getReferenceRect(referenceElement),
+      getReferenceClientRect: () => referenceElement.getBoundingClientRect(),
     });
 
     tableMenuPopup.current?.show();
