@@ -43,6 +43,13 @@ const createRect = (rect: Partial<DOMRect>): DOMRect => {
   } as DOMRect;
 };
 
+const mockBoundingClientRect = (element: Element, rect: DOMRect) => {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => rect,
+  });
+};
+
 const createChainMethods = () => {
   return {
     addRowAfter: jest.fn().mockReturnValue({ run: mockRun }),
@@ -144,8 +151,13 @@ describe('TableMenu', () => {
         height: 32,
       });
 
+<<<<<<< HEAD
       tableWrapper.getBoundingClientRect = jest.fn(() => wrapperRect);
       cell.getBoundingClientRect = jest.fn(() => cellRect);
+=======
+      mockBoundingClientRect(tableWrapper, wrapperRect);
+      mockBoundingClientRect(cell, cellRect);
+>>>>>>> a8a1ed21e2 (refactor & run lint tests)
 
       content.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
@@ -199,12 +211,8 @@ describe('TableMenu', () => {
         height: 40,
       });
 
-      jest
-        .spyOn(firstSelectedCell, 'getBoundingClientRect')
-        .mockReturnValue(firstRect);
-      jest
-        .spyOn(secondSelectedCell, 'getBoundingClientRect')
-        .mockReturnValue(secondRect);
+      mockBoundingClientRect(firstSelectedCell, firstRect);
+      mockBoundingClientRect(secondSelectedCell, secondRect);
 
       tableWrapper.dispatchEvent(
         new MouseEvent('mousedown', { bubbles: true })
@@ -247,9 +255,7 @@ describe('TableMenu', () => {
         height: 400,
       });
 
-      jest
-        .spyOn(tableWrapper, 'getBoundingClientRect')
-        .mockReturnValue(wrapperRect);
+      mockBoundingClientRect(tableWrapper, wrapperRect);
 
       tableWrapper.dispatchEvent(
         new MouseEvent('mousedown', { bubbles: true })

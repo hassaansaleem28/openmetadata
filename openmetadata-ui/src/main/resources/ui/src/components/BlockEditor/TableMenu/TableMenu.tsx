@@ -82,24 +82,6 @@ const getSelectedCellsRect = (tableWrapper: Element): DOMRect | null => {
   return buildRect(top, left, right, bottom);
 };
 
-const getReferenceRect = (target: Element): DOMRect => {
-  const cell = target.closest<HTMLElement>(TABLE_CELL_SELECTOR);
-
-  if (cell) {
-    return cell.getBoundingClientRect();
-  }
-
-  const tableWrapper = target.closest<HTMLElement>(TABLE_WRAPPER_SELECTOR);
-
-  if (!tableWrapper) {
-    return target.getBoundingClientRect();
-  }
-
-  return (
-    getSelectedCellsRect(tableWrapper) ?? tableWrapper.getBoundingClientRect()
-  );
-};
-
 const TableMenu = (props: TableMenuProps) => {
   const { editor } = props;
   const { view, isEditable } = editor;
@@ -120,10 +102,15 @@ const TableMenu = (props: TableMenuProps) => {
     }
 
     const tableCell = target.closest<HTMLElement>(TABLE_CELL_SELECTOR);
-    const referenceElement = tableCell ?? tableWrapper ?? target;
+
+    const getReferenceClientRect = tableCell
+      ? () => tableCell.getBoundingClientRect()
+      : () =>
+          getSelectedCellsRect(tableWrapper) ??
+          tableWrapper.getBoundingClientRect();
 
     tableMenuPopup.current?.setProps({
-      getReferenceClientRect: () => referenceElement.getBoundingClientRect(),
+      getReferenceClientRect,
     });
 
     tableMenuPopup.current?.show();
