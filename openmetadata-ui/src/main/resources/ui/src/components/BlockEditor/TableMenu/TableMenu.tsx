@@ -95,13 +95,17 @@ const TableMenu = (props: TableMenuProps) => {
       return;
     }
 
-    const tableWrapper = target.closest<HTMLElement>(TABLE_WRAPPER_SELECTOR);
+    const tableWrapper = target.closest(TABLE_WRAPPER_SELECTOR) as
+      | HTMLElement
+      | null;
 
     if (!tableWrapper) {
       return;
     }
 
-    const tableCell = target.closest<HTMLElement>(TABLE_CELL_SELECTOR);
+    const tableCell = target.closest(TABLE_CELL_SELECTOR) as
+      | HTMLElement
+      | null;
 
     const getReferenceClientRect = tableCell
       ? () => tableCell.getBoundingClientRect()
