@@ -113,9 +113,9 @@ const TableMenu = (props: TableMenuProps) => {
       return;
     }
 
-    const table = target.closest(TABLE_WRAPPER_SELECTOR);
+    const tableWrapper = target.closest(TABLE_WRAPPER_SELECTOR);
 
-    if (!table) {
+    if (!tableWrapper) {
       return;
     }
 
