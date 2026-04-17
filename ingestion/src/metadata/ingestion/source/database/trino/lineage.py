@@ -12,7 +12,7 @@
 Trino lineage module
 """
 import traceback
-from typing import Iterable, Iterator, List
+from typing import Iterable, Iterator, List, Optional
 
 from sqlalchemy import text
 
@@ -112,9 +112,25 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         """
         Method to check whether the table1 and table2 are same
         """
-        return table1.name.root == table2.name.root and {
-            column.name.root for column in table1.columns
-        } == {column.name.root for column in table2.columns}
+        if table1.name.root.lower() != table2.name.root.lower():
+            return False
+
+        if not table1.columns or not table2.columns:
+            return True
+
+        return {
+            column.name.root.lower() for column in table1.columns
+        } == {column.name.root.lower() for column in table2.columns}
+
+    def _get_case_insensitive_cross_database_table(
+        self, cross_database_fqn: str, trino_table: Table
+    ) -> Optional[Table]:
+        for cross_database_table in self.metadata.list_all_entities(
+            entity=Table, params={"database": cross_database_fqn}
+        ):
+            if self.check_same_table(trino_table, cross_database_table):
+                return cross_database_table
+        return None
 
     def get_cross_database_lineage(
         self, from_table: Table, to_table: Table
@@ -155,15 +171,23 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
                         cross_database_table_fqn = trino_table_fqn.replace(
                             trino_database_fqn, cross_database_fqn
                         )
-                        # Cache cross-database table against its FQN to avoid repeated API calls
+                        if cross_database_table_fqn not in cross_database_table_fqn_mapping:
+                            cross_database_table = self.metadata.get_by_name(
+                                Table, fqn=cross_database_table_fqn
+                            )
+                            if not cross_database_table:
+                                cross_database_table = (
+                                    self._get_case_insensitive_cross_database_table(
+                                        cross_database_fqn, trino_table
+                                    )
+                                )
+                            cross_database_table_fqn_mapping[
+                                cross_database_table_fqn
+                            ] = cross_database_table
+
                         cross_database_table = cross_database_table_fqn_mapping[
                             cross_database_table_fqn
-                        ] = cross_database_table_fqn_mapping.get(
-                            cross_database_table_fqn,
-                            self.metadata.get_by_name(
-                                Table, fqn=cross_database_table_fqn
-                            ),
-                        )
+                        ]
                         # Create cross database lineage request if both tables are same
                         if cross_database_table and self.check_same_table(
                             trino_table, cross_database_table
