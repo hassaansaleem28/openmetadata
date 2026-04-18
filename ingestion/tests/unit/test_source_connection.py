@@ -1333,8 +1333,45 @@ class SourceConnectionTest(TestCase):
         ]
         assert os.path.isdir(wallet_dir)
         assert os.path.exists(os.path.join(wallet_dir, "tnsnames.ora"))
+
+        # Repeated _get_client calls should reuse the same extracted wallet directory.
+        oracle_connection._get_client()
+        assert (
+            oracle_connection.service_connection.connectionArguments.root["config_dir"]
+            == wallet_dir
+        )
+
         oracle_connection._cleanup_wallet_temp_dir()
         assert not os.path.exists(wallet_dir)
+
+    @patch(
+        "metadata.ingestion.source.database.oracle.connection.create_generic_db_connection"
+    )
+    def test_oracle_autonomous_wallet_content_zip_slip_rejected(
+        self, mock_create_generic_db_connection
+    ):
+        wallet_bytes = io.BytesIO()
+        with zipfile.ZipFile(wallet_bytes, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr("../malicious.txt", "malicious")
+
+        encoded_wallet = base64.b64encode(wallet_bytes.getvalue()).decode("utf-8")
+
+        connection = OracleConnectionConfig(
+            username="admin",
+            password="password",
+            oracleConnectionType=OracleAutonomousConnection(
+                tnsAlias="myadb_high",
+                walletContent=encoded_wallet,
+            ),
+        )
+        oracle_connection = OracleConnection(connection)
+        mock_create_generic_db_connection.return_value = "dummy_engine"
+
+        with self.assertRaises(ValueError) as error:
+            oracle_connection._get_client()
+
+        assert "unsafe file paths" in str(error.exception)
+        assert oracle_connection._wallet_temp_dir is None
 
     def test_exasol_url(self):
         from metadata.ingestion.source.database.exasol.connection import (

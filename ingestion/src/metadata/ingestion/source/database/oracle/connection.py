@@ -18,6 +18,7 @@ import os
 import shutil
 import sys
 import tempfile
+import weakref
 import zipfile
 from copy import deepcopy
 from typing import Any, Optional
@@ -75,14 +76,27 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
     def __init__(self, connection: OracleConnectionConfig):
         super().__init__(connection)
         self._wallet_temp_dir: Optional[str] = None
+        self._wallet_cleanup_finalizer: Optional[weakref.finalize] = None
 
-    def __del__(self):
+    def _set_wallet_temp_dir(self, wallet_temp_dir: str) -> None:
         self._cleanup_wallet_temp_dir()
+        self._wallet_temp_dir = wallet_temp_dir
+        self._wallet_cleanup_finalizer = weakref.finalize(
+            self,
+            shutil.rmtree,
+            wallet_temp_dir,
+            ignore_errors=True,
+        )
 
     def _cleanup_wallet_temp_dir(self) -> None:
-        if self._wallet_temp_dir:
-            shutil.rmtree(self._wallet_temp_dir, ignore_errors=True)
-            self._wallet_temp_dir = None
+        wallet_temp_dir = self._wallet_temp_dir
+        if self._wallet_cleanup_finalizer and self._wallet_cleanup_finalizer.alive:
+            self._wallet_cleanup_finalizer()
+        elif wallet_temp_dir:
+            shutil.rmtree(wallet_temp_dir, ignore_errors=True)
+
+        self._wallet_cleanup_finalizer = None
+        self._wallet_temp_dir = None
 
     def _is_autonomous_connection(self) -> bool:
         return isinstance(
@@ -95,6 +109,34 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
     ) -> Any:
         return connection_type.root
 
+    @staticmethod
+    def _safe_extract_wallet_archive(zip_ref: zipfile.ZipFile, target_dir: str) -> None:
+        target_dir_real = os.path.realpath(target_dir)
+        safe_prefix = f"{target_dir_real}{os.sep}"
+
+        for member in zip_ref.infolist():
+            member_path = os.path.realpath(
+                os.path.join(target_dir_real, member.filename)
+            )
+
+            if (
+                not member_path.startswith(safe_prefix)
+                and member_path != target_dir_real
+            ):
+                raise ValueError(
+                    "Invalid walletContent. Wallet zip contains unsafe file paths."
+                )
+
+            if member.is_dir():
+                os.makedirs(member_path, exist_ok=True)
+                continue
+
+            os.makedirs(os.path.dirname(member_path), exist_ok=True)
+            with zip_ref.open(member, "r") as source_file, open(
+                member_path, "wb"
+            ) as target_file:
+                shutil.copyfileobj(source_file, target_file)
+
     def _extract_wallet_content(self, wallet_content: SecretStr) -> str:
         try:
             decoded_wallet = base64.b64decode(wallet_content.get_secret_value())
@@ -103,19 +145,21 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
                 "Invalid walletContent. Expected a base64-encoded wallet zip."
             ) from exc
 
-        self._cleanup_wallet_temp_dir()
-        self._wallet_temp_dir = tempfile.mkdtemp(prefix="oracle_wallet_")
+        wallet_temp_dir = tempfile.mkdtemp(prefix="oracle_wallet_")
+        self._set_wallet_temp_dir(wallet_temp_dir)
 
         try:
             with zipfile.ZipFile(io.BytesIO(decoded_wallet)) as zip_ref:
-                zip_ref.extractall(self._wallet_temp_dir)
-        except zipfile.BadZipFile as exc:
+                self._safe_extract_wallet_archive(zip_ref, wallet_temp_dir)
+        except (ValueError, zipfile.BadZipFile) as exc:
             self._cleanup_wallet_temp_dir()
-            raise ValueError(
-                "Invalid walletContent. Expected a valid zip archive."
-            ) from exc
+            if isinstance(exc, zipfile.BadZipFile):
+                raise ValueError(
+                    "Invalid walletContent. Expected a valid zip archive."
+                ) from exc
+            raise
 
-        return self._wallet_temp_dir
+        return wallet_temp_dir
 
     def _configure_autonomous_connection_arguments(self) -> None:
         connection_type = self.service_connection.oracleConnectionType
@@ -123,18 +167,6 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
             return
 
         autonomous_connection = self._get_autonomous_connection_config(connection_type)
-
-        wallet_path = autonomous_connection.walletPath
-        if autonomous_connection.walletContent:
-            wallet_path = self._extract_wallet_content(
-                autonomous_connection.walletContent
-            )
-
-        if not wallet_path:
-            raise ValueError(
-                "Oracle Autonomous connections require either walletPath or walletContent."
-            )
-
         if not self.service_connection.connectionArguments:
             self.service_connection.connectionArguments = (
                 init_empty_connection_arguments()
@@ -142,15 +174,33 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
         elif self.service_connection.connectionArguments.root is None:
             self.service_connection.connectionArguments.root = {}
 
-        self.service_connection.connectionArguments.root["config_dir"] = wallet_path
-        self.service_connection.connectionArguments.root[
-            "wallet_location"
-        ] = wallet_path
+        connection_arguments = self.service_connection.connectionArguments.root
+
+        wallet_path = autonomous_connection.walletPath
+        if autonomous_connection.walletContent:
+            if self._wallet_temp_dir and os.path.isdir(self._wallet_temp_dir):
+                wallet_path = self._wallet_temp_dir
+            else:
+                wallet_path = self._extract_wallet_content(
+                    autonomous_connection.walletContent
+                )
+        else:
+            self._cleanup_wallet_temp_dir()
+
+        if not wallet_path:
+            raise ValueError(
+                "Oracle Autonomous connections require either walletPath or walletContent."
+            )
+
+        connection_arguments["config_dir"] = wallet_path
+        connection_arguments["wallet_location"] = wallet_path
 
         if autonomous_connection.walletPassword:
-            self.service_connection.connectionArguments.root[
+            connection_arguments[
                 "wallet_password"
             ] = autonomous_connection.walletPassword.get_secret_value()
+        else:
+            connection_arguments.pop("wallet_password", None)
 
     def _get_client(self) -> Engine:
         """
