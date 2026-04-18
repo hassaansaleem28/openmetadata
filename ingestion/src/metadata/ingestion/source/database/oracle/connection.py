@@ -107,7 +107,7 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
     def _get_autonomous_connection_config(
         connection_type: OracleAutonomousConnection,
     ) -> Any:
-        return connection_type.root
+        return connection_type
 
     @staticmethod
     def _safe_extract_wallet_archive(zip_ref: zipfile.ZipFile, target_dir: str) -> None:
