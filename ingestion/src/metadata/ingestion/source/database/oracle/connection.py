@@ -132,8 +132,11 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
                 continue
 
             os.makedirs(os.path.dirname(member_path), exist_ok=True)
-            with zip_ref.open(member, "r") as source_file, open(
-                member_path, "wb"
+            target_fd = os.open(
+                member_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+            )
+            with zip_ref.open(member, "r") as source_file, os.fdopen(
+                target_fd, "wb"
             ) as target_file:
                 shutil.copyfileobj(source_file, target_file)
 
