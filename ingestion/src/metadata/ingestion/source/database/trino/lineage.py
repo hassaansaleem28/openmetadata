@@ -18,6 +18,7 @@ from sqlalchemy import text
 
 from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
 from metadata.generated.schema.entity.data.database import Database
+from metadata.generated.schema.entity.data.databaseSchema import DatabaseSchema
 from metadata.generated.schema.entity.data.table import Table
 from metadata.generated.schema.entity.services.ingestionPipelines.status import (
     StackTraceError,
@@ -123,17 +124,40 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         } == {column.name.root.lower() for column in table2.columns}
 
     def _get_cross_database_schema_fqn(
-        self, cross_database_fqn: str, trino_table: Table
+        self,
+        cross_database_fqn: str,
+        trino_table: Table,
+        cross_database_schema_mapping: Dict[str, Dict[str, str]],
     ) -> Optional[str]:
+        trino_schema_name = None
         if trino_table.databaseSchema and trino_table.databaseSchema.name:
-            return f"{cross_database_fqn}.{trino_table.databaseSchema.name.root}"
+            trino_schema_name = trino_table.databaseSchema.name.root
 
-        if trino_table.fullyQualifiedName and trino_table.fullyQualifiedName.root:
+        if not trino_schema_name and trino_table.fullyQualifiedName and trino_table.fullyQualifiedName.root:
             trino_table_fqn_parts = trino_table.fullyQualifiedName.root.split(".")
             if len(trino_table_fqn_parts) >= 4:
-                return f"{cross_database_fqn}.{trino_table_fqn_parts[-2]}"
+                trino_schema_name = trino_table_fqn_parts[-2]
 
-        return None
+        if not trino_schema_name:
+            return None
+
+        if cross_database_fqn not in cross_database_schema_mapping:
+            cross_database_schema_mapping[cross_database_fqn] = {}
+            for cross_database_schema in self.metadata.list_all_entities(
+                entity=DatabaseSchema, params={"database": cross_database_fqn}
+            ):
+                if cross_database_schema.name and cross_database_schema.fullyQualifiedName:
+                    cross_database_schema_mapping[cross_database_fqn][
+                        cross_database_schema.name.root.lower()
+                    ] = cross_database_schema.fullyQualifiedName.root
+
+        cross_database_schema_fqn = cross_database_schema_mapping[cross_database_fqn].get(
+            trino_schema_name.lower()
+        )
+        if cross_database_schema_fqn:
+            return cross_database_schema_fqn
+
+        return f"{cross_database_fqn}.{trino_schema_name}"
 
     def _get_case_insensitive_cross_database_table(
         self,
@@ -177,6 +201,7 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         try:
             all_cross_database_fqns = self.get_cross_database_fqn_from_service_names()
             cross_database_table_fqn_mapping = {}
+            cross_database_schema_fqn_mapping: Dict[str, Dict[str, str]] = {}
             cross_database_table_schema_mapping: Dict[
                 str, Dict[str, List[Table]]
             ] = {}
@@ -201,7 +226,9 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
                             trino_database_fqn, cross_database_fqn
                         )
                         cross_database_schema_fqn = self._get_cross_database_schema_fqn(
-                            cross_database_fqn, trino_table
+                            cross_database_fqn,
+                            trino_table,
+                            cross_database_schema_fqn_mapping,
                         )
                         if cross_database_table_fqn not in cross_database_table_fqn_mapping:
                             cross_database_table = self.metadata.get_by_name(

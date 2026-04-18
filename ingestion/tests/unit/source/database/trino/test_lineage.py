@@ -13,6 +13,7 @@
 from unittest.mock import MagicMock, patch
 
 from metadata.generated.schema.entity.data.database import Database
+from metadata.generated.schema.entity.data.databaseSchema import DatabaseSchema
 from metadata.generated.schema.entity.data.table import Table
 from metadata.ingestion.api.models import Either
 from metadata.ingestion.source.database.trino.lineage import TrinoLineageSource
@@ -61,6 +62,10 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     source_database = MagicMock()
     source_database.fullyQualifiedName.root = "repro_postgres.source_db"
 
+    source_schema = MagicMock()
+    source_schema.name.root = "SOURCE_SCHEMA"
+    source_schema.fullyQualifiedName.root = "repro_postgres.source_db.SOURCE_SCHEMA"
+
     trino_table = MagicMock()
     trino_table.id.root = "11111111-1111-1111-1111-111111111111"
     trino_table.fullyQualifiedName.root = "repro_trino.postgres.source_schema.customer"
@@ -83,11 +88,11 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
 
     source_table = MagicMock()
     source_table.id.root = "22222222-2222-2222-2222-222222222222"
-    source_table.fullyQualifiedName.root = "repro_postgres.source_db.source_schema.CUSTOMER"
+    source_table.fullyQualifiedName.root = "repro_postgres.source_db.SOURCE_SCHEMA.CUSTOMER"
     source_table.name.root = "CUSTOMER"
-    source_table.databaseSchema.name.root = "source_schema"
+    source_table.databaseSchema.name.root = "SOURCE_SCHEMA"
     source_table.databaseSchema.fullyQualifiedName.root = (
-        "repro_postgres.source_db.source_schema"
+        "repro_postgres.source_db.SOURCE_SCHEMA"
     )
     source_table.columns = [_mock_column("id"), _mock_column("name")]
 
@@ -96,10 +101,12 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
             return [trino_database]
         if entity is Database and params == {"service": "repro_postgres"}:
             return [source_database]
+        if entity is DatabaseSchema and params == {"database": "repro_postgres.source_db"}:
+            return [source_schema]
         if entity is Table and params == {"database": "repro_trino.postgres"}:
             return [trino_table]
         if entity is Table and params == {
-            "databaseSchema": "repro_postgres.source_db.source_schema"
+            "databaseSchema": "repro_postgres.source_db.SOURCE_SCHEMA"
         }:
             return [source_table]
         if entity is Table and params == {"database": "repro_postgres.source_db"}:
@@ -123,7 +130,12 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     mock_get_cross_database_lineage.assert_called_once_with(source_table, trino_table)
     assert any(
         call.kwargs.get("params") == {
-            "databaseSchema": "repro_postgres.source_db.source_schema"
+            "databaseSchema": "repro_postgres.source_db.SOURCE_SCHEMA"
         }
+        for call in metadata.list_all_entities.call_args_list
+    )
+    assert any(
+        call.kwargs.get("params") == {"database": "repro_postgres.source_db"}
+        and call.kwargs.get("entity") is DatabaseSchema
         for call in metadata.list_all_entities.call_args_list
     )
