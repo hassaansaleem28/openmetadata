@@ -9,7 +9,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import base64
+import io
+import os
+import zipfile
 from unittest import TestCase
+from unittest.mock import patch
 
 from trino.auth import BasicAuthentication, JWTAuthentication, OAuth2Authentication
 
@@ -78,6 +83,7 @@ from metadata.generated.schema.entity.services.connections.database.oracleConnec
     OracleConnection as OracleConnectionConfig,
 )
 from metadata.generated.schema.entity.services.connections.database.oracleConnection import (
+    OracleAutonomousConnection,
     OracleDatabaseSchema,
     OracleScheme,
     OracleServiceName,
@@ -1226,6 +1232,109 @@ class SourceConnectionTest(TestCase):
             ),
         )
         assert OracleConnection.get_connection_url(oracle_conn_obj) == expected_url
+
+        expected_url = "oracle+cx_oracle://admin:password@myadb_high"
+        oracle_conn_obj = OracleConnectionConfig(
+            username="admin",
+            password="password",
+            oracleConnectionType=OracleAutonomousConnection(
+                tnsAlias="myadb_high",
+                walletPath="/tmp/my_wallet",
+            ),
+        )
+        assert OracleConnection.get_connection_url(oracle_conn_obj) == expected_url
+
+        expected_url = [
+            "oracle+cx_oracle://admin:password@myadb_high?test_key_2=test_value_2&test_key_1=test_value_1",
+            "oracle+cx_oracle://admin:password@myadb_high?test_key_1=test_value_1&test_key_2=test_value_2",
+        ]
+        oracle_conn_obj = OracleConnectionConfig(
+            username="admin",
+            password="password",
+            oracleConnectionType=OracleAutonomousConnection(
+                tnsAlias="myadb_high",
+                walletPath="/tmp/my_wallet",
+            ),
+            connectionOptions=dict(
+                test_key_1="test_value_1", test_key_2="test_value_2"
+            ),
+        )
+        assert OracleConnection.get_connection_url(oracle_conn_obj) in expected_url
+
+    @patch(
+        "metadata.ingestion.source.database.oracle.connection.oracledb.init_oracle_client"
+    )
+    @patch(
+        "metadata.ingestion.source.database.oracle.connection.create_generic_db_connection"
+    )
+    def test_oracle_autonomous_wallet_path_args(
+        self, mock_create_generic_db_connection, mock_init_oracle_client
+    ):
+        connection = OracleConnectionConfig(
+            username="admin",
+            password="password",
+            instantClientDirectory="/instantclient",
+            oracleConnectionType=OracleAutonomousConnection(
+                tnsAlias="myadb_high",
+                walletPath="/tmp/my_wallet",
+                walletPassword="wallet_password",
+            ),
+        )
+        oracle_connection = OracleConnection(connection)
+        mock_create_generic_db_connection.return_value = "dummy_engine"
+
+        oracle_connection._get_client()
+
+        assert mock_init_oracle_client.call_count == 0
+        assert (
+            oracle_connection.service_connection.connectionArguments.root["config_dir"]
+            == "/tmp/my_wallet"
+        )
+        assert (
+            oracle_connection.service_connection.connectionArguments.root[
+                "wallet_location"
+            ]
+            == "/tmp/my_wallet"
+        )
+        assert (
+            oracle_connection.service_connection.connectionArguments.root[
+                "wallet_password"
+            ]
+            == "wallet_password"
+        )
+
+    @patch(
+        "metadata.ingestion.source.database.oracle.connection.create_generic_db_connection"
+    )
+    def test_oracle_autonomous_wallet_content_args(
+        self, mock_create_generic_db_connection
+    ):
+        wallet_bytes = io.BytesIO()
+        with zipfile.ZipFile(wallet_bytes, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr("tnsnames.ora", "MYADB_HIGH=(DESCRIPTION=...)")
+
+        encoded_wallet = base64.b64encode(wallet_bytes.getvalue()).decode("utf-8")
+
+        connection = OracleConnectionConfig(
+            username="admin",
+            password="password",
+            oracleConnectionType=OracleAutonomousConnection(
+                tnsAlias="myadb_high",
+                walletContent=encoded_wallet,
+            ),
+        )
+        oracle_connection = OracleConnection(connection)
+        mock_create_generic_db_connection.return_value = "dummy_engine"
+
+        oracle_connection._get_client()
+
+        wallet_dir = oracle_connection.service_connection.connectionArguments.root[
+            "config_dir"
+        ]
+        assert os.path.isdir(wallet_dir)
+        assert os.path.exists(os.path.join(wallet_dir, "tnsnames.ora"))
+        oracle_connection._cleanup_wallet_temp_dir()
+        assert not os.path.exists(wallet_dir)
 
     def test_exasol_url(self):
         from metadata.ingestion.source.database.exasol.connection import (

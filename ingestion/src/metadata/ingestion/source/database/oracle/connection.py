@@ -12,10 +12,15 @@
 """
 Source connection handler
 """
+import base64
+import io
 import os
+import shutil
 import sys
+import tempfile
+import zipfile
 from copy import deepcopy
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import quote_plus
 
 import oracledb
@@ -30,6 +35,7 @@ from metadata.generated.schema.entity.services.connections.database.oracleConnec
     OracleConnection as OracleConnectionConfig,
 )
 from metadata.generated.schema.entity.services.connections.database.oracleConnection import (
+    OracleAutonomousConnection,
     OracleDatabaseSchema,
     OracleServiceName,
     OracleTNSConnection,
@@ -41,6 +47,7 @@ from metadata.ingestion.connections.builders import (
     create_generic_db_connection,
     get_connection_args_common,
     get_connection_options_dict,
+    init_empty_connection_arguments,
 )
 from metadata.ingestion.connections.connection import BaseConnection
 from metadata.ingestion.connections.secrets import connection_with_options_secrets
@@ -67,22 +74,104 @@ logger = ingestion_logger()
 class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
     def __init__(self, connection: OracleConnectionConfig):
         super().__init__(connection)
+        self._wallet_temp_dir: Optional[str] = None
+
+    def __del__(self):
+        self._cleanup_wallet_temp_dir()
+
+    def _cleanup_wallet_temp_dir(self) -> None:
+        if self._wallet_temp_dir:
+            shutil.rmtree(self._wallet_temp_dir, ignore_errors=True)
+            self._wallet_temp_dir = None
+
+    def _is_autonomous_connection(self) -> bool:
+        return isinstance(
+            self.service_connection.oracleConnectionType, OracleAutonomousConnection
+        )
+
+    @staticmethod
+    def _get_autonomous_connection_config(
+        connection_type: OracleAutonomousConnection,
+    ) -> Any:
+        return connection_type.root
+
+    def _extract_wallet_content(self, wallet_content: SecretStr) -> str:
+        try:
+            decoded_wallet = base64.b64decode(wallet_content.get_secret_value())
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                "Invalid walletContent. Expected a base64-encoded wallet zip."
+            ) from exc
+
+        self._cleanup_wallet_temp_dir()
+        self._wallet_temp_dir = tempfile.mkdtemp(prefix="oracle_wallet_")
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(decoded_wallet)) as zip_ref:
+                zip_ref.extractall(self._wallet_temp_dir)
+        except zipfile.BadZipFile as exc:
+            self._cleanup_wallet_temp_dir()
+            raise ValueError(
+                "Invalid walletContent. Expected a valid zip archive."
+            ) from exc
+
+        return self._wallet_temp_dir
+
+    def _configure_autonomous_connection_arguments(self) -> None:
+        connection_type = self.service_connection.oracleConnectionType
+        if not isinstance(connection_type, OracleAutonomousConnection):
+            return
+
+        autonomous_connection = self._get_autonomous_connection_config(connection_type)
+
+        wallet_path = autonomous_connection.walletPath
+        if autonomous_connection.walletContent:
+            wallet_path = self._extract_wallet_content(
+                autonomous_connection.walletContent
+            )
+
+        if not wallet_path:
+            raise ValueError(
+                "Oracle Autonomous connections require either walletPath or walletContent."
+            )
+
+        if not self.service_connection.connectionArguments:
+            self.service_connection.connectionArguments = (
+                init_empty_connection_arguments()
+            )
+        elif self.service_connection.connectionArguments.root is None:
+            self.service_connection.connectionArguments.root = {}
+
+        self.service_connection.connectionArguments.root["config_dir"] = wallet_path
+        self.service_connection.connectionArguments.root[
+            "wallet_location"
+        ] = wallet_path
+
+        if autonomous_connection.walletPassword:
+            self.service_connection.connectionArguments.root[
+                "wallet_password"
+            ] = autonomous_connection.walletPassword.get_secret_value()
 
     def _get_client(self) -> Engine:
         """
         Create connection
         """
-        try:
-            if self.service_connection.instantClientDirectory:
-                logger.info(
-                    f"Initializing Oracle thick client at {self.service_connection.instantClientDirectory}"
-                )
-                os.environ[LD_LIB_ENV] = self.service_connection.instantClientDirectory
-                oracledb.init_oracle_client(
-                    lib_dir=self.service_connection.instantClientDirectory
-                )
-        except DatabaseError as err:
-            logger.info(f"Could not initialize Oracle thick client: {err}")
+        self._configure_autonomous_connection_arguments()
+
+        if not self._is_autonomous_connection():
+            try:
+                if self.service_connection.instantClientDirectory:
+                    logger.info(
+                        f"Initializing Oracle thick client at {self.service_connection.instantClientDirectory}"
+                    )
+                    os.environ[
+                        LD_LIB_ENV
+                    ] = self.service_connection.instantClientDirectory
+                    oracledb.init_oracle_client(
+                        lib_dir=self.service_connection.instantClientDirectory
+                    )
+            except DatabaseError as err:
+                logger.info(f"Could not initialize Oracle thick client: {err}")
 
         return create_generic_db_connection(
             connection=self.service_connection,
@@ -150,6 +239,13 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
             connection_dict[
                 "host"
             ] = connection_copy.oracleConnectionType.oracleTNSConnection
+        elif isinstance(
+            connection_copy.oracleConnectionType, OracleAutonomousConnection
+        ):
+            autonomous_connection = self._get_autonomous_connection_config(
+                connection_copy.oracleConnectionType
+            )
+            connection_dict["host"] = autonomous_connection.tnsAlias
 
         # Add connection options if present
         if connection_copy.connectionOptions and connection_copy.connectionOptions.root:
@@ -207,6 +303,13 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
         if isinstance(connection.oracleConnectionType, OracleTNSConnection):
             # ref https://stackoverflow.com/questions/14140902/using-oracle-service-names-with-sqlalchemy
             url += connection.oracleConnectionType.oracleTNSConnection
+            return url
+
+        if isinstance(connection.oracleConnectionType, OracleAutonomousConnection):
+            autonomous_connection = OracleConnection._get_autonomous_connection_config(
+                connection.oracleConnectionType
+            )
+            url += autonomous_connection.tnsAlias
             return url
 
         # If not TNS, we add the hostPort

@@ -63,6 +63,49 @@
       "required": [
         "oracleTNSConnection"
       ]
+    },
+    "OracleAutonomousConnection": {
+      "title": "Oracle Autonomous Connection",
+      "type": "object",
+      "properties": {
+        "tnsAlias": {
+          "title": "TNS Alias",
+          "description": "Service alias defined in the wallet tnsnames.ora file, such as myadb_high.",
+          "type": "string"
+        },
+        "walletPath": {
+          "title": "Wallet Path",
+          "description": "Path to the extracted Oracle wallet directory on the ingestion host.",
+          "type": "string"
+        },
+        "walletContent": {
+          "title": "Wallet Content",
+          "description": "Base64-encoded Oracle wallet zip content. If provided, OpenMetadata extracts it at runtime.",
+          "type": "string",
+          "format": "password"
+        },
+        "walletPassword": {
+          "title": "Wallet Password",
+          "description": "Wallet password for Oracle Autonomous mTLS connections, if required.",
+          "type": "string",
+          "format": "password"
+        }
+      },
+      "required": [
+        "tnsAlias"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "walletPath"
+          ]
+        },
+        {
+          "required": [
+            "walletContent"
+          ]
+        }
+      ]
     }
   },
   "properties": {
@@ -97,7 +140,7 @@
     "oracleConnectionType": {
       "title": "Oracle Connection Type",
       "type": "object",
-      "description": "Connect with oracle by either passing service name or database schema name.",
+      "description": "Connect with Oracle by using schema, service name, TNS connection string, or Oracle Autonomous wallet configuration.",
       "oneOf": [
         {
           "$ref": "#/definitions/OracleDatabaseSchema"
@@ -107,6 +150,9 @@
         },
         {
           "$ref": "#/definitions/OracleTNSConnection"
+        },
+        {
+          "$ref": "#/definitions/OracleAutonomousConnection"
         }
       ]
     },
