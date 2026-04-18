@@ -116,9 +116,11 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         if table1.name.root.lower() != table2.name.root.lower():
             return False
 
-        if not table1.columns or not table2.columns:
+        if not table1.columns and not table2.columns:
             return True
 
+        if not table1.columns or not table2.columns:
+            return False
         return {
             column.name.root.lower() for column in table1.columns
         } == {column.name.root.lower() for column in table2.columns}
