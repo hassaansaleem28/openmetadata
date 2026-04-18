@@ -74,7 +74,7 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     trino_table.databaseSchema.fullyQualifiedName.root = (
         "repro_trino.postgres.source_schema"
     )
-    trino_table.columns = []
+    trino_table.columns = [_mock_column("id"), _mock_column("name")]
 
     wrong_table = MagicMock()
     wrong_table.id.root = "33333333-3333-3333-3333-333333333333"
