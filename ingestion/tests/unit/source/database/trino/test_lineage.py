@@ -35,6 +35,22 @@ def _mock_column(column_name):
     return column
 
 
+def test_check_same_table_is_case_insensitive_for_names_and_columns():
+    """Table and column comparisons should ignore case."""
+    metadata = MagicMock()
+    lineage_source = TrinoLineageSourceTestDouble(metadata)
+
+    source_table = MagicMock()
+    source_table.name.root = "CUSTOMER"
+    source_table.columns = [_mock_column("ID"), _mock_column("NAME")]
+
+    target_table = MagicMock()
+    target_table.name.root = "customer"
+    target_table.columns = [_mock_column("id"), _mock_column("name")]
+
+    assert lineage_source.check_same_table(source_table, target_table)
+
+
 def test_yield_cross_database_lineage_finds_uppercase_source_table():
     """Trino cross-db lineage should resolve the uppercase Postgres source table."""
     metadata = MagicMock()
@@ -49,12 +65,30 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     trino_table.id.root = "11111111-1111-1111-1111-111111111111"
     trino_table.fullyQualifiedName.root = "repro_trino.postgres.source_schema.customer"
     trino_table.name.root = "customer"
+    trino_table.databaseSchema.name.root = "source_schema"
+    trino_table.databaseSchema.fullyQualifiedName.root = (
+        "repro_trino.postgres.source_schema"
+    )
     trino_table.columns = []
+
+    wrong_table = MagicMock()
+    wrong_table.id.root = "33333333-3333-3333-3333-333333333333"
+    wrong_table.fullyQualifiedName.root = "repro_postgres.source_db.other_schema.customer"
+    wrong_table.name.root = "customer"
+    wrong_table.databaseSchema.name.root = "other_schema"
+    wrong_table.databaseSchema.fullyQualifiedName.root = (
+        "repro_postgres.source_db.other_schema"
+    )
+    wrong_table.columns = [_mock_column("legacy")]
 
     source_table = MagicMock()
     source_table.id.root = "22222222-2222-2222-2222-222222222222"
     source_table.fullyQualifiedName.root = "repro_postgres.source_db.source_schema.CUSTOMER"
     source_table.name.root = "CUSTOMER"
+    source_table.databaseSchema.name.root = "source_schema"
+    source_table.databaseSchema.fullyQualifiedName.root = (
+        "repro_postgres.source_db.source_schema"
+    )
     source_table.columns = [_mock_column("id"), _mock_column("name")]
 
     def list_all_entities_side_effect(entity, params=None, **_kwargs):
@@ -64,8 +98,12 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
             return [source_database]
         if entity is Table and params == {"database": "repro_trino.postgres"}:
             return [trino_table]
-        if entity is Table and params == {"database": "repro_postgres.source_db"}:
+        if entity is Table and params == {
+            "databaseSchema": "repro_postgres.source_db.source_schema"
+        }:
             return [source_table]
+        if entity is Table and params == {"database": "repro_postgres.source_db"}:
+            return [wrong_table]
         return []
 
     metadata.list_all_entities.side_effect = list_all_entities_side_effect
@@ -83,3 +121,9 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     assert len(result) == 1
     assert result[0].right == "cross-database-edge"
     mock_get_cross_database_lineage.assert_called_once_with(source_table, trino_table)
+    assert any(
+        call.kwargs.get("params") == {
+            "databaseSchema": "repro_postgres.source_db.source_schema"
+        }
+        for call in metadata.list_all_entities.call_args_list
+    )

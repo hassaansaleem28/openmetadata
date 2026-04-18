@@ -12,7 +12,7 @@
 Trino lineage module
 """
 import traceback
-from typing import Iterable, Iterator, List, Optional
+from typing import Dict, Iterable, Iterator, List, Optional
 
 from sqlalchemy import text
 
@@ -122,14 +122,40 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
             column.name.root.lower() for column in table1.columns
         } == {column.name.root.lower() for column in table2.columns}
 
-    def _get_case_insensitive_cross_database_table(
+    def _get_cross_database_schema_fqn(
         self, cross_database_fqn: str, trino_table: Table
+    ) -> Optional[str]:
+        if trino_table.databaseSchema and trino_table.databaseSchema.name:
+            return f"{cross_database_fqn}.{trino_table.databaseSchema.name.root}"
+
+        if trino_table.fullyQualifiedName and trino_table.fullyQualifiedName.root:
+            trino_table_fqn_parts = trino_table.fullyQualifiedName.root.split(".")
+            if len(trino_table_fqn_parts) >= 4:
+                return f"{cross_database_fqn}.{trino_table_fqn_parts[-2]}"
+
+        return None
+
+    def _get_case_insensitive_cross_database_table(
+        self,
+        cross_database_schema_fqn: str,
+        trino_table: Table,
+        cross_database_table_schema_mapping: Dict[str, Dict[str, List[Table]]],
     ) -> Optional[Table]:
-        for cross_database_table in self.metadata.list_all_entities(
-            entity=Table, params={"database": cross_database_fqn}
-        ):
+        if cross_database_schema_fqn not in cross_database_table_schema_mapping:
+            cross_database_table_schema_mapping[cross_database_schema_fqn] = {}
+            for cross_database_table in self.metadata.list_all_entities(
+                entity=Table, params={"databaseSchema": cross_database_schema_fqn}
+            ):
+                cross_database_table_schema_mapping[cross_database_schema_fqn].setdefault(
+                    cross_database_table.name.root.lower(), []
+                ).append(cross_database_table)
+
+        for cross_database_table in cross_database_table_schema_mapping[
+            cross_database_schema_fqn
+        ].get(trino_table.name.root.lower(), []):
             if self.check_same_table(trino_table, cross_database_table):
                 return cross_database_table
+
         return None
 
     def get_cross_database_lineage(
@@ -151,6 +177,9 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         try:
             all_cross_database_fqns = self.get_cross_database_fqn_from_service_names()
             cross_database_table_fqn_mapping = {}
+            cross_database_table_schema_mapping: Dict[
+                str, Dict[str, List[Table]]
+            ] = {}
 
             # Get all databases for the specified Trino service
             trino_databases = self.metadata.list_all_entities(
@@ -171,14 +200,19 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
                         cross_database_table_fqn = trino_table_fqn.replace(
                             trino_database_fqn, cross_database_fqn
                         )
+                        cross_database_schema_fqn = self._get_cross_database_schema_fqn(
+                            cross_database_fqn, trino_table
+                        )
                         if cross_database_table_fqn not in cross_database_table_fqn_mapping:
                             cross_database_table = self.metadata.get_by_name(
                                 Table, fqn=cross_database_table_fqn
                             )
-                            if not cross_database_table:
+                            if not cross_database_table and cross_database_schema_fqn:
                                 cross_database_table = (
                                     self._get_case_insensitive_cross_database_table(
-                                        cross_database_fqn, trino_table
+                                        cross_database_schema_fqn,
+                                        trino_table,
+                                        cross_database_table_schema_mapping,
                                     )
                                 )
                             cross_database_table_fqn_mapping[
