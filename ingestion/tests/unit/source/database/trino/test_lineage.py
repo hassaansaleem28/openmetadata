@@ -78,7 +78,9 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
 
     wrong_table = MagicMock()
     wrong_table.id.root = "33333333-3333-3333-3333-333333333333"
-    wrong_table.fullyQualifiedName.root = "repro_postgres.source_db.other_schema.customer"
+    wrong_table.fullyQualifiedName.root = (
+        "repro_postgres.source_db.other_schema.customer"
+    )
     wrong_table.name.root = "customer"
     wrong_table.databaseSchema.name.root = "other_schema"
     wrong_table.databaseSchema.fullyQualifiedName.root = (
@@ -88,7 +90,9 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
 
     source_table = MagicMock()
     source_table.id.root = "22222222-2222-2222-2222-222222222222"
-    source_table.fullyQualifiedName.root = "repro_postgres.source_db.SOURCE_SCHEMA.CUSTOMER"
+    source_table.fullyQualifiedName.root = (
+        "repro_postgres.source_db.SOURCE_SCHEMA.CUSTOMER"
+    )
     source_table.name.root = "CUSTOMER"
     source_table.databaseSchema.name.root = "SOURCE_SCHEMA"
     source_table.databaseSchema.fullyQualifiedName.root = (
@@ -101,7 +105,9 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
             return [trino_database]
         if entity is Database and params == {"service": "repro_postgres"}:
             return [source_database]
-        if entity is DatabaseSchema and params == {"database": "repro_postgres.source_db"}:
+        if entity is DatabaseSchema and params == {
+            "database": "repro_postgres.source_db"
+        }:
             return [source_schema]
         if entity is Table and params == {"database": "repro_trino.postgres"}:
             return [trino_table]
@@ -129,9 +135,8 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     assert result[0].right == "cross-database-edge"
     mock_get_cross_database_lineage.assert_called_once_with(source_table, trino_table)
     assert any(
-        call.kwargs.get("params") == {
-            "databaseSchema": "repro_postgres.source_db.SOURCE_SCHEMA"
-        }
+        call.kwargs.get("params")
+        == {"databaseSchema": "repro_postgres.source_db.SOURCE_SCHEMA"}
         for call in metadata.list_all_entities.call_args_list
     )
     assert any(
