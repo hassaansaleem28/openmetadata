@@ -32,6 +32,7 @@ from metadata.ingestion.source.database.trino.query_parser import (
     TRINO_QUERY_BATCH_SIZE,
     TrinoQueryParserSource,
 )
+from metadata.utils import fqn
 from metadata.utils.logger import ingestion_logger
 
 logger = ingestion_logger()
@@ -141,7 +142,7 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
             and trino_table.fullyQualifiedName
             and trino_table.fullyQualifiedName.root
         ):
-            trino_table_fqn_parts = trino_table.fullyQualifiedName.root.split(".")
+            trino_table_fqn_parts = fqn.split(trino_table.fullyQualifiedName.root)
             if len(trino_table_fqn_parts) >= 4:
                 trino_schema_name = trino_table_fqn_parts[-2]
 
@@ -167,7 +168,7 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         if cross_database_schema_fqn:
             return cross_database_schema_fqn
 
-        return f"{cross_database_fqn}.{trino_schema_name}"
+        return f"{cross_database_fqn}.{fqn.quote_name(trino_schema_name)}"
 
     def _get_case_insensitive_cross_database_table(
         self,
@@ -220,10 +221,13 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         cross_database_table_schema_mapping: Dict[str, Dict[str, List[Table]]],
     ) -> Optional[Either[AddLineageRequest]]:
         trino_table_fqn = trino_table.fullyQualifiedName.root
+        trino_database_prefix = f"{trino_database_fqn}."
+        if not trino_table_fqn.startswith(trino_database_prefix):
+            return None
+
+        trino_table_suffix = trino_table_fqn[len(trino_database_fqn) :]
         for cross_database_fqn in all_cross_database_fqns:
-            cross_database_table_fqn = trino_table_fqn.replace(
-                trino_database_fqn, cross_database_fqn
-            )
+            cross_database_table_fqn = f"{cross_database_fqn}{trino_table_suffix}"
             cross_database_schema_fqn = self._get_cross_database_schema_fqn(
                 cross_database_fqn,
                 trino_table,

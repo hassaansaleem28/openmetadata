@@ -144,3 +144,25 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
         and call.kwargs.get("entity") is DatabaseSchema
         for call in metadata.list_all_entities.call_args_list
     )
+
+
+def test_get_cross_database_schema_fqn_parses_quoted_schema_from_fqn():
+    """Quoted schema names with dots should be parsed from table FQN safely."""
+    metadata = MagicMock()
+    metadata.list_all_entities.return_value = []
+
+    trino_table = MagicMock()
+    trino_table.databaseSchema = None
+    trino_table.fullyQualifiedName.root = (
+        'repro_trino.postgres."source.schema".customer'
+    )
+
+    lineage_source = TrinoLineageSourceTestDouble(metadata)
+
+    result = lineage_source._get_cross_database_schema_fqn(
+        "repro_postgres.source_db",
+        trino_table,
+        {},
+    )
+
+    assert result == 'repro_postgres.source_db."source.schema"'
