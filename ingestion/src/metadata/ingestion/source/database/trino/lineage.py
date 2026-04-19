@@ -228,23 +228,24 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         trino_table_suffix = trino_table_fqn[len(trino_database_fqn) :]
         for cross_database_fqn in all_cross_database_fqns:
             cross_database_table_fqn = f"{cross_database_fqn}{trino_table_suffix}"
-            cross_database_schema_fqn = self._get_cross_database_schema_fqn(
-                cross_database_fqn,
-                trino_table,
-                cross_database_schema_fqn_mapping,
-            )
             if cross_database_table_fqn not in cross_database_table_fqn_mapping:
                 cross_database_table = self.metadata.get_by_name(
                     Table, fqn=cross_database_table_fqn
                 )
-                if not cross_database_table and cross_database_schema_fqn:
-                    cross_database_table = (
-                        self._get_case_insensitive_cross_database_table(
-                            cross_database_schema_fqn,
-                            trino_table,
-                            cross_database_table_schema_mapping,
-                        )
+                if not cross_database_table:
+                    cross_database_schema_fqn = self._get_cross_database_schema_fqn(
+                        cross_database_fqn,
+                        trino_table,
+                        cross_database_schema_fqn_mapping,
                     )
+                    if cross_database_schema_fqn:
+                        cross_database_table = (
+                            self._get_case_insensitive_cross_database_table(
+                                cross_database_schema_fqn,
+                                trino_table,
+                                cross_database_table_schema_mapping,
+                            )
+                        )
                 cross_database_table_fqn_mapping[cross_database_table_fqn] = (
                     cross_database_table
                 )
