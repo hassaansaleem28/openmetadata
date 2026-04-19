@@ -13,6 +13,7 @@
 Source connection handler
 """
 import base64
+import binascii
 import io
 import os
 import shutil
@@ -21,7 +22,7 @@ import tempfile
 import weakref
 import zipfile
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Optional
 from urllib.parse import quote_plus
 
 import oracledb
@@ -106,7 +107,7 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
     @staticmethod
     def _get_autonomous_connection_config(
         connection_type: OracleAutonomousConnection,
-    ) -> Any:
+    ) -> OracleAutonomousConnection:
         return connection_type
 
     @staticmethod
@@ -144,8 +145,10 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
 
     def _extract_wallet_content(self, wallet_content: SecretStr) -> str:
         try:
-            decoded_wallet = base64.b64decode(wallet_content.get_secret_value())
-        except (ValueError, TypeError) as exc:
+            decoded_wallet = base64.b64decode(
+                wallet_content.get_secret_value(), validate=True
+            )
+        except (binascii.Error, TypeError) as exc:
             raise ValueError(
                 "Invalid walletContent. Expected a base64-encoded wallet zip."
             ) from exc

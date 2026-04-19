@@ -1373,6 +1373,29 @@ class SourceConnectionTest(TestCase):
         assert "unsafe file paths" in str(error.exception)
         assert oracle_connection._wallet_temp_dir is None
 
+    @patch(
+        "metadata.ingestion.source.database.oracle.connection.create_generic_db_connection"
+    )
+    def test_oracle_autonomous_wallet_content_invalid_base64_rejected(
+        self, mock_create_generic_db_connection
+    ):
+        connection = OracleConnectionConfig(
+            username="admin",
+            password="password",
+            oracleConnectionType=OracleAutonomousConnection(
+                tnsAlias="myadb_high",
+                walletContent="Zm9v$",
+            ),
+        )
+        oracle_connection = OracleConnection(connection)
+        mock_create_generic_db_connection.return_value = "dummy_engine"
+
+        with self.assertRaises(ValueError) as error:
+            oracle_connection._get_client()
+
+        assert "base64-encoded wallet zip" in str(error.exception)
+        assert oracle_connection._wallet_temp_dir is None
+
     def test_exasol_url(self):
         from metadata.ingestion.source.database.exasol.connection import (
             get_connection_url,
