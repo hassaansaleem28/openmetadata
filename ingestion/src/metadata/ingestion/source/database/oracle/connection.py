@@ -210,6 +210,13 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
         else:
             connection_arguments.pop("wallet_password", None)
 
+    def _uses_inline_wallet_content(self) -> bool:
+        connection_type = self.service_connection.oracleConnectionType
+        return bool(
+            isinstance(connection_type, OracleAutonomousConnection)
+            and connection_type.walletContent
+        )
+
     def _get_client(self) -> Engine:
         """
         Create connection
@@ -231,11 +238,16 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
             except DatabaseError as err:
                 logger.info(f"Could not initialize Oracle thick client: {err}")
 
-        return create_generic_db_connection(
-            connection=self.service_connection,
-            get_connection_url_fn=self.get_connection_url,
-            get_connection_args_fn=get_connection_args_common,
-        )
+        try:
+            return create_generic_db_connection(
+                connection=self.service_connection,
+                get_connection_url_fn=self.get_connection_url,
+                get_connection_args_fn=get_connection_args_common,
+            )
+        except Exception:
+            if self._uses_inline_wallet_content():
+                self._cleanup_wallet_temp_dir()
+            raise
 
     def test_connection(
         self,

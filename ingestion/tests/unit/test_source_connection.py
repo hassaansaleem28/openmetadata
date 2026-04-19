@@ -1347,6 +1347,42 @@ class SourceConnectionTest(TestCase):
     @patch(
         "metadata.ingestion.source.database.oracle.connection.create_generic_db_connection"
     )
+    def test_oracle_autonomous_wallet_content_cleanup_on_connection_failure(
+        self, mock_create_generic_db_connection
+    ):
+        wallet_bytes = io.BytesIO()
+        with zipfile.ZipFile(wallet_bytes, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr("tnsnames.ora", "MYADB_HIGH=(DESCRIPTION=...)")
+
+        encoded_wallet = base64.b64encode(wallet_bytes.getvalue()).decode("utf-8")
+        connection = OracleConnectionConfig(
+            username="admin",
+            password="password",
+            oracleConnectionType=OracleAutonomousConnection(
+                tnsAlias="myadb_high",
+                walletContent=encoded_wallet,
+            ),
+        )
+        oracle_connection = OracleConnection(connection)
+        wallet_dir = None
+
+        def raise_connection_error(**kwargs):
+            nonlocal wallet_dir
+            wallet_dir = kwargs["connection"].connectionArguments.root["config_dir"]
+            raise RuntimeError("engine creation failed")
+
+        mock_create_generic_db_connection.side_effect = raise_connection_error
+
+        with self.assertRaises(RuntimeError):
+            oracle_connection._get_client()
+
+        assert wallet_dir is not None
+        assert not os.path.exists(wallet_dir)
+        assert oracle_connection._wallet_temp_dir is None
+
+    @patch(
+        "metadata.ingestion.source.database.oracle.connection.create_generic_db_connection"
+    )
     def test_oracle_autonomous_wallet_content_zip_slip_rejected(
         self, mock_create_generic_db_connection
     ):
