@@ -132,13 +132,15 @@ class OracleConnection(BaseConnection[OracleConnectionConfig, Engine]):
                 continue
 
             os.makedirs(os.path.dirname(member_path), exist_ok=True)
-            target_fd = os.open(
-                member_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
-            )
-            with zip_ref.open(member, "r") as source_file, os.fdopen(
-                target_fd, "wb"
-            ) as target_file:
-                shutil.copyfileobj(source_file, target_file)
+            with zip_ref.open(member, "r") as source_file:
+                with open(
+                    member_path,
+                    "wb",
+                    opener=lambda path, flags: os.open(
+                        path, flags, 0o600
+                    ),
+                ) as target_file:
+                    shutil.copyfileobj(source_file, target_file)
 
     def _extract_wallet_content(self, wallet_content: SecretStr) -> str:
         try:
