@@ -8,7 +8,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""Regression tests for Trino cross-database lineage."""
+"""Regression tests for Trino cross-database lineage (Issue #27419)."""
 
 from unittest.mock import MagicMock, patch
 
@@ -37,7 +37,7 @@ def _mock_column(column_name):
 
 
 def test_check_same_table_is_case_insensitive_for_names_and_columns():
-    """Table and column comparisons should ignore case."""
+    """Issue #27419: table and column comparisons should ignore case."""
     metadata = MagicMock()
     lineage_source = TrinoLineageSourceTestDouble(metadata)
 
@@ -53,7 +53,7 @@ def test_check_same_table_is_case_insensitive_for_names_and_columns():
 
 
 def test_yield_cross_database_lineage_finds_uppercase_source_table():
-    """Trino cross-db lineage should resolve the uppercase Postgres source table."""
+    """Issue #27419: resolve uppercase Postgres source table in cross-db lineage."""
     metadata = MagicMock()
 
     trino_database = MagicMock()
@@ -147,7 +147,7 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
 
 
 def test_get_cross_database_schema_fqn_parses_quoted_schema_from_fqn():
-    """Quoted schema names with dots should be parsed from table FQN safely."""
+    """Issue #27419: parse quoted schema names with dots from table FQNs."""
     metadata = MagicMock()
     metadata.list_all_entities.return_value = []
 
