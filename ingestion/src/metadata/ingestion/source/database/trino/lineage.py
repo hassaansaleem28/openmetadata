@@ -246,9 +246,9 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
                                 cross_database_table_schema_mapping,
                             )
                         )
-                cross_database_table_fqn_mapping[cross_database_table_fqn] = (
-                    cross_database_table
-                )
+                cross_database_table_fqn_mapping[
+                    cross_database_table_fqn
+                ] = cross_database_table
 
             cross_database_table = cross_database_table_fqn_mapping[
                 cross_database_table_fqn
