@@ -219,14 +219,9 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
                     fields="fullyQualifiedName,name,columns,databaseSchema",
                 )
                 if cross_database_tables:
-                    if isinstance(cross_database_tables, list):
-                        cross_database_table_schema_mapping[cross_database_schema_fqn][
-                            table_key
-                        ] = cross_database_tables
-                    else:
-                        cross_database_table_schema_mapping[cross_database_schema_fqn][
-                            table_key
-                        ] = [cross_database_tables]
+                    cross_database_table_schema_mapping[cross_database_schema_fqn][
+                        table_key
+                    ] = cross_database_tables
 
         for cross_database_table in cross_database_table_schema_mapping[
             cross_database_schema_fqn
