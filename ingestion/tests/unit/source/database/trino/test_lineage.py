@@ -87,23 +87,16 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     )
     source_table.columns = [_mock_column("id"), _mock_column("name")]
 
-    def search_database_from_es_side_effect(**kwargs):
-        service_name = kwargs.get("service_name")
-        if service_name == "repro_trino":
+    def list_all_entities_side_effect(entity, params=None, **_kwargs):
+        if entity is Database and params == {"service": "repro_trino"}:
             return [trino_database]
-        if service_name == "repro_postgres":
+        if entity is Database and params == {"service": "repro_postgres"}:
             return [source_database]
-        return []
-
-    def search_table_from_es_side_effect(**kwargs):
-        service_name = kwargs.get("service_name")
-        table_name = kwargs.get("table_name")
-        if service_name == "repro_trino" and table_name == "*":
+        if entity is Table and params == {"database": "repro_trino.postgres"}:
             return [trino_table]
-        if service_name == "repro_postgres" and table_name == "customer":
-            return [source_table]
         return []
 
+    metadata.list_all_entities.side_effect = list_all_entities_side_effect
     metadata.get_by_name.return_value = None
 
     lineage_source = TrinoLineageSourceTestDouble(metadata)
@@ -116,11 +109,8 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
         "metadata.ingestion.source.database.trino.lineage.fqn.search_database_schema_from_es",
         return_value=[source_schema],
     ) as mock_search_database_schema, patch(
-        "metadata.ingestion.source.database.trino.lineage.fqn.search_database_from_es",
-        side_effect=search_database_from_es_side_effect,
-    ) as mock_search_database, patch(
         "metadata.ingestion.source.database.trino.lineage.fqn.search_table_from_es",
-        side_effect=search_table_from_es_side_effect,
+        return_value=[source_table],
     ) as mock_search_table:
         result = list(lineage_source.yield_cross_database_lineage())
 
@@ -135,7 +125,15 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
         fetch_multiple_entities=True,
         fields="fullyQualifiedName,name",
     )
-    # mock_search_table is called multiple times, so we don't assert_called_once_with
+    mock_search_table.assert_called_once_with(
+        metadata=metadata,
+        database_name="source_db",
+        schema_name="SOURCE_SCHEMA",
+        service_name="repro_postgres",
+        table_name="customer",
+        fetch_multiple_entities=True,
+        fields="fullyQualifiedName,name,columns,databaseSchema",
+    )
 
 
 def test_get_cross_database_schema_fqn_parses_quoted_schema_from_fqn():
