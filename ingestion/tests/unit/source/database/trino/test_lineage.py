@@ -13,7 +13,6 @@
 from unittest.mock import MagicMock, patch
 
 from metadata.generated.schema.entity.data.database import Database
-from metadata.generated.schema.entity.data.databaseSchema import DatabaseSchema
 from metadata.generated.schema.entity.data.table import Table
 from metadata.ingestion.api.models import Either
 from metadata.ingestion.source.database.trino.lineage import TrinoLineageSource
@@ -76,18 +75,6 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
     )
     trino_table.columns = [_mock_column("id"), _mock_column("name")]
 
-    wrong_table = MagicMock()
-    wrong_table.id.root = "33333333-3333-3333-3333-333333333333"
-    wrong_table.fullyQualifiedName.root = (
-        "repro_postgres.source_db.other_schema.customer"
-    )
-    wrong_table.name.root = "customer"
-    wrong_table.databaseSchema.name.root = "other_schema"
-    wrong_table.databaseSchema.fullyQualifiedName.root = (
-        "repro_postgres.source_db.other_schema"
-    )
-    wrong_table.columns = [_mock_column("legacy")]
-
     source_table = MagicMock()
     source_table.id.root = "22222222-2222-2222-2222-222222222222"
     source_table.fullyQualifiedName.root = (
@@ -105,18 +92,8 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
             return [trino_database]
         if entity is Database and params == {"service": "repro_postgres"}:
             return [source_database]
-        if entity is DatabaseSchema and params == {
-            "database": "repro_postgres.source_db"
-        }:
-            return [source_schema]
         if entity is Table and params == {"database": "repro_trino.postgres"}:
             return [trino_table]
-        if entity is Table and params == {
-            "databaseSchema": "repro_postgres.source_db.SOURCE_SCHEMA"
-        }:
-            return [source_table]
-        if entity is Table and params == {"database": "repro_postgres.source_db"}:
-            return [wrong_table]
         return []
 
     metadata.list_all_entities.side_effect = list_all_entities_side_effect
@@ -128,28 +105,40 @@ def test_yield_cross_database_lineage_finds_uppercase_source_table():
         TrinoLineageSource,
         "get_cross_database_lineage",
         return_value=Either(right="cross-database-edge"),
-    ) as mock_get_cross_database_lineage:
+    ) as mock_get_cross_database_lineage, patch(
+        "metadata.ingestion.source.database.trino.lineage.fqn.search_database_schema_from_es",
+        return_value=[source_schema],
+    ) as mock_search_database_schema, patch(
+        "metadata.ingestion.source.database.trino.lineage.fqn.search_table_from_es",
+        return_value=[source_table],
+    ) as mock_search_table:
         result = list(lineage_source.yield_cross_database_lineage())
 
     assert len(result) == 1
     assert result[0].right == "cross-database-edge"
     mock_get_cross_database_lineage.assert_called_once_with(source_table, trino_table)
-    assert any(
-        call.kwargs.get("params")
-        == {"databaseSchema": "repro_postgres.source_db.SOURCE_SCHEMA"}
-        for call in metadata.list_all_entities.call_args_list
+    mock_search_database_schema.assert_called_once_with(
+        metadata=metadata,
+        database_name="source_db",
+        schema_name="source_schema",
+        service_name="repro_postgres",
+        fetch_multiple_entities=True,
+        fields="fullyQualifiedName,name",
     )
-    assert any(
-        call.kwargs.get("params") == {"database": "repro_postgres.source_db"}
-        and call.kwargs.get("entity") is DatabaseSchema
-        for call in metadata.list_all_entities.call_args_list
+    mock_search_table.assert_called_once_with(
+        metadata=metadata,
+        database_name="source_db",
+        schema_name="SOURCE_SCHEMA",
+        service_name="repro_postgres",
+        table_name="customer",
+        fetch_multiple_entities=True,
+        fields="fullyQualifiedName,name,columns,databaseSchema",
     )
 
 
 def test_get_cross_database_schema_fqn_parses_quoted_schema_from_fqn():
     """Issue #27419: parse quoted schema names with dots from table FQNs."""
     metadata = MagicMock()
-    metadata.list_all_entities.return_value = []
 
     trino_table = MagicMock()
     trino_table.databaseSchema = None
@@ -159,10 +148,14 @@ def test_get_cross_database_schema_fqn_parses_quoted_schema_from_fqn():
 
     lineage_source = TrinoLineageSourceTestDouble(metadata)
 
-    result = lineage_source._get_cross_database_schema_fqn(
-        "repro_postgres.source_db",
-        trino_table,
-        {},
-    )
+    with patch(
+        "metadata.ingestion.source.database.trino.lineage.fqn.search_database_schema_from_es",
+        return_value=None,
+    ):
+        result = lineage_source._get_cross_database_schema_fqn(
+            "repro_postgres.source_db",
+            trino_table,
+            {},
+        )
 
     assert result == 'repro_postgres.source_db."source.schema"'

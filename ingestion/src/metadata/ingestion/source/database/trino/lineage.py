@@ -19,7 +19,6 @@ from sqlalchemy import text
 
 from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
 from metadata.generated.schema.entity.data.database import Database
-from metadata.generated.schema.entity.data.databaseSchema import DatabaseSchema
 from metadata.generated.schema.entity.data.table import Table
 from metadata.generated.schema.entity.services.ingestionPipelines.status import (
     StackTraceError,
@@ -151,16 +150,6 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
 
         if cross_database_fqn not in cross_database_schema_mapping:
             cross_database_schema_mapping[cross_database_fqn] = {}
-            for cross_database_schema in self.metadata.list_all_entities(
-                entity=DatabaseSchema, params={"database": cross_database_fqn}
-            ):
-                if (
-                    cross_database_schema.name
-                    and cross_database_schema.fullyQualifiedName
-                ):
-                    cross_database_schema_mapping[cross_database_fqn][
-                        cross_database_schema.name.root.lower()
-                    ] = cross_database_schema.fullyQualifiedName.root
 
         cross_database_schema_fqn = cross_database_schema_mapping[
             cross_database_fqn
@@ -168,7 +157,33 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         if cross_database_schema_fqn:
             return cross_database_schema_fqn
 
-        return f"{cross_database_fqn}.{fqn.quote_name(trino_schema_name)}"
+        cross_database_fqn_parts = fqn.split(cross_database_fqn)
+        if len(cross_database_fqn_parts) == 2:
+            cross_database_service_name, cross_database_name = cross_database_fqn_parts
+            cross_database_schemas = fqn.search_database_schema_from_es(
+                metadata=self.metadata,
+                database_name=cross_database_name,
+                schema_name=trino_schema_name,
+                service_name=cross_database_service_name,
+                fetch_multiple_entities=True,
+                fields="fullyQualifiedName,name",
+            )
+            if cross_database_schemas:
+                for cross_database_schema in cross_database_schemas:
+                    if (
+                        cross_database_schema.name
+                        and cross_database_schema.fullyQualifiedName
+                    ):
+                        cross_database_schema_mapping[cross_database_fqn][
+                            cross_database_schema.name.root.lower()
+                        ] = cross_database_schema.fullyQualifiedName.root
+
+        return (
+            cross_database_schema_mapping[cross_database_fqn].get(
+                trino_schema_name.lower()
+            )
+            or f"{cross_database_fqn}.{fqn.quote_name(trino_schema_name)}"
+        )
 
     def _get_case_insensitive_cross_database_table(
         self,
@@ -178,18 +193,44 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
     ) -> Optional[Table]:
         if cross_database_schema_fqn not in cross_database_table_schema_mapping:
             cross_database_table_schema_mapping[cross_database_schema_fqn] = {}
-            for cross_database_table in self.metadata.list_all_entities(
-                entity=Table, params={"databaseSchema": cross_database_schema_fqn}
-            ):
-                cross_database_table_schema_mapping[
-                    cross_database_schema_fqn
-                ].setdefault(cross_database_table.name.root.lower(), []).append(
-                    cross_database_table
+
+        table_key = trino_table.name.root.lower()
+        if (
+            table_key
+            not in cross_database_table_schema_mapping[cross_database_schema_fqn]
+        ):
+            cross_database_table_schema_mapping[cross_database_schema_fqn][
+                table_key
+            ] = []
+            cross_database_schema_fqn_parts = fqn.split(cross_database_schema_fqn)
+            if len(cross_database_schema_fqn_parts) == 3:
+                (
+                    cross_database_service_name,
+                    cross_database_name,
+                    cross_database_schema_name,
+                ) = cross_database_schema_fqn_parts
+                cross_database_tables = fqn.search_table_from_es(
+                    metadata=self.metadata,
+                    database_name=cross_database_name,
+                    schema_name=cross_database_schema_name,
+                    service_name=cross_database_service_name,
+                    table_name=trino_table.name.root,
+                    fetch_multiple_entities=True,
+                    fields="fullyQualifiedName,name,columns,databaseSchema",
                 )
+                if cross_database_tables:
+                    if isinstance(cross_database_tables, list):
+                        cross_database_table_schema_mapping[cross_database_schema_fqn][
+                            table_key
+                        ] = cross_database_tables
+                    else:
+                        cross_database_table_schema_mapping[cross_database_schema_fqn][
+                            table_key
+                        ] = [cross_database_tables]
 
         for cross_database_table in cross_database_table_schema_mapping[
             cross_database_schema_fqn
-        ].get(trino_table.name.root.lower(), []):
+        ].get(table_key, []):
             if self.check_same_table(trino_table, cross_database_table):
                 return cross_database_table
 
