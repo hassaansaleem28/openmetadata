@@ -214,7 +214,7 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
                     database_name=cross_database_name,
                     schema_name=cross_database_schema_name,
                     service_name=cross_database_service_name,
-                    table_name=trino_table.name.root,
+                    table_name=table_key,
                     fetch_multiple_entities=True,
                     fields="fullyQualifiedName,name,columns,databaseSchema",
                 )
