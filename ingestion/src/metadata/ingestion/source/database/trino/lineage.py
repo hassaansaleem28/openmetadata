@@ -266,7 +266,7 @@ class TrinoLineageSource(TrinoQueryParserSource, LineageSource):
         if not trino_table_fqn.startswith(trino_database_prefix):
             return None
 
-        trino_table_suffix = trino_table_fqn[len(trino_database_fqn) :]
+        trino_table_suffix = trino_table_fqn[len(trino_database_fqn):]
         for cross_database_fqn in all_cross_database_fqns:
             cross_database_table_fqn = f"{cross_database_fqn}{trino_table_suffix}"
             if cross_database_table_fqn not in cross_database_table_fqn_mapping:
