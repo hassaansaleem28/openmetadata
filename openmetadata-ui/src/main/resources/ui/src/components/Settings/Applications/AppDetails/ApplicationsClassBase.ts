@@ -15,6 +15,7 @@ import { ComponentType, FC, lazy } from 'react';
 import { AppType } from '../../../../generated/entity/applications/app';
 import { getScheduleOptionsFromSchedules } from '../../../../utils/SchedularUtils';
 import withSuspenseFallback from '../../../AppRouter/withSuspenseFallback';
+import { McpApplicationPlugin } from '../../../McpChat/McpApplicationPlugin';
 import type { ApplicationConfigurationProps } from '../ApplicationConfiguration/ApplicationConfiguration';
 import { AppPlugin } from '../plugins/AppPlugin';
 
@@ -74,7 +75,9 @@ class ApplicationsClassBase {
   public appPluginRegistry: Record<
     string,
     new (name: string, isInstalled: boolean) => AppPlugin
-  > = {};
+  > = {
+    McpApplication: McpApplicationPlugin,
+  };
 
   public getScheduleOptionsForApp(
     app: string,
