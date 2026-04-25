@@ -2236,6 +2236,7 @@
     "type-filed-name": "סוג {{fieldName}}",
     "type-label": "סוג:",
     "type-lowercase": "סוג",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "אי-התאמות סוג",
     "type-of": "סוג של",
     "type-to-confirm": "הקלד <0>{{text}}</0> לאישור",

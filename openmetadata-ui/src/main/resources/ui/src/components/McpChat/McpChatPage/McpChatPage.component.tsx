@@ -155,7 +155,7 @@ const McpChatPage = () => {
     setStreaming({ text: '', toolCall: null });
 
     const optimisticUserMessage: McpMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: `__optimistic_${Date.now()}__`,
       conversationId: activeConversationId ?? '',
       role: 'user',
       content: [{ type: 'text', text: message }],
@@ -175,10 +175,10 @@ const McpChatPage = () => {
         result?: string;
       }> = [];
 
-      for await (const event of streamChat({
-        message,
-        conversationId: activeConversationId ?? undefined,
-      })) {
+      for await (const event of streamChat(
+        { message, conversationId: activeConversationId ?? undefined },
+        abortRef.current.signal
+      )) {
         if (abortRef.current?.signal.aborted) {
           break;
         }
@@ -215,7 +215,7 @@ const McpChatPage = () => {
             resolvedConversationId = event.conversationId;
             setMessages((prev) => {
               const withoutOptimistic = prev.filter(
-                (m) => !m.id.startsWith('optimistic-')
+                (m) => !m.id.startsWith('__optimistic_')
               );
 
               return [...withoutOptimistic, event.message];
@@ -240,7 +240,7 @@ const McpChatPage = () => {
     } catch {
       showErrorToast(t('message.mcp-stream-error'));
       setMessages((prev) =>
-        prev.filter((m) => !m.id.startsWith('optimistic-'))
+        prev.filter((m) => !m.id.startsWith('__optimistic_'))
       );
     } finally {
       setIsStreaming(false);
@@ -270,14 +270,15 @@ const McpChatPage = () => {
   );
 
   const newChatBtnClass =
-    'tw:flex tw:w-full tw:items-center tw:gap-2 ' +
-    'tw:rounded-[var(--radius-md)] tw:border tw:border-[var(--color-border-primary)] ' +
-    'tw:bg-[var(--color-bg-primary)] tw:px-3 tw:py-2 tw:text-sm tw:font-medium ' +
-    'tw:text-[var(--color-text-primary)] tw:transition-colors tw:duration-150 ' +
-    'hover:tw:border-[var(--color-border-brand)] hover:tw:bg-[var(--color-bg-brand-secondary)]';
+    'tw:flex tw:w-full tw:items-center tw:justify-center tw:gap-2 ' +
+    'tw:rounded-[var(--radius-lg)] tw:border tw:border-[var(--color-border-secondary)] ' +
+    'tw:bg-[var(--color-bg-primary)] tw:px-4 tw:py-2.5 ' +
+    'tw:text-sm tw:font-medium tw:text-[var(--color-text-primary)] ' +
+    'tw:transition-all tw:duration-150 ' +
+    'hover:tw:border-[var(--color-border-brand)] hover:tw:text-[var(--color-text-brand)]';
 
   const convItemBaseClass =
-    'tw:group tw:mx-1 tw:my-0.5 tw:flex tw:cursor-pointer tw:items-center ' +
+    'tw:group tw:mx-2 tw:my-0.5 tw:flex tw:cursor-pointer tw:items-center ' +
     'tw:justify-between tw:rounded-[var(--radius-md)] tw:px-3 tw:py-2 ' +
     'tw:text-sm tw:transition-colors tw:duration-100';
 
@@ -302,10 +303,11 @@ const McpChatPage = () => {
 
   const inputWrapperClass =
     'tw:flex tw:items-end tw:gap-3 tw:rounded-[var(--radius-xl)] ' +
-    'tw:border tw:border-[var(--color-border-primary)] ' +
+    'tw:border tw:border-[var(--color-border-secondary)] ' +
     'tw:bg-[var(--color-bg-primary)] tw:px-4 tw:py-3 ' +
-    'tw:shadow-[var(--shadow-xs)] tw:transition-colors tw:duration-150 ' +
-    'focus-within:tw:border-[var(--color-border-brand)]';
+    'tw:transition-all tw:duration-200 ' +
+    'focus-within:tw:border-[var(--color-border-brand)] ' +
+    'focus-within:tw:shadow-[0_0_0_3px_var(--color-bg-brand-secondary)]';
 
   const textareaClass =
     'tw:min-h-[24px] tw:max-h-40 tw:flex-1 tw:resize-none tw:border-none ' +
@@ -322,8 +324,8 @@ const McpChatPage = () => {
   return (
     <div className="tw:flex tw:h-full tw:overflow-hidden tw:bg-[var(--color-bg-primary)]">
       {/* Sidebar */}
-      <aside className="tw:flex tw:w-64 tw:flex-shrink-0 tw:flex-col tw:border-r tw:border-[var(--color-border-primary)] tw:bg-[var(--color-bg-secondary)]">
-        <div className="tw:border-b tw:border-[var(--color-border-primary)] tw:p-3">
+      <aside className="tw:flex tw:w-64 tw:flex-shrink-0 tw:flex-col tw:border-r tw:border-[var(--color-border-secondary)] tw:bg-[var(--color-bg-secondary)]">
+        <div className="tw:p-4">
           <button
             className={newChatBtnClass}
             data-testid="mcp-new-chat-btn"
@@ -359,7 +361,18 @@ const McpChatPage = () => {
                   className={deleteBtnClass}
                   data-testid={`mcp-delete-conversation-${conv.id}`}
                   onClick={(e) => handleDeleteConversation(e, conv.id)}>
-                  ×
+                  <svg
+                    className="tw:h-3 tw:w-3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24">
+                    <path
+                      d="M6 18L18 6M6 6l12 12"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </button>
               </div>
             ))
@@ -375,14 +388,18 @@ const McpChatPage = () => {
               <TypingIndicator />
             </div>
           ) : messages.length === 0 && !isStreaming ? (
-            <div className="tw:flex tw:h-full tw:flex-col tw:items-center tw:justify-center tw:gap-3 tw:text-center">
-              <AddChatIcon className="tw:h-12 tw:w-12 tw:text-[var(--color-text-tertiary)] tw:opacity-40" />
-              <p className="tw:text-base tw:font-medium tw:text-[var(--color-text-secondary)]">
-                {t('label.ai-assistant')}
-              </p>
-              <p className="tw:max-w-sm tw:text-sm tw:text-[var(--color-text-tertiary)]">
-                {t('message.mcp-chat-welcome')}
-              </p>
+            <div className="tw:flex tw:h-full tw:flex-col tw:items-center tw:justify-center tw:gap-4 tw:text-center">
+              <div className="tw:flex tw:h-16 tw:w-16 tw:items-center tw:justify-center tw:rounded-full tw:bg-[var(--color-bg-brand-secondary)] tw:shadow-[var(--shadow-sm)]">
+                <AddChatIcon className="tw:h-8 tw:w-8 tw:text-[var(--color-text-brand)]" />
+              </div>
+              <div className="tw:flex tw:flex-col tw:gap-1.5">
+                <p className="tw:text-base tw:font-semibold tw:text-[var(--color-text-primary)]">
+                  {t('label.ai-assistant')}
+                </p>
+                <p className="tw:max-w-xs tw:text-sm tw:leading-relaxed tw:text-[var(--color-text-tertiary)]">
+                  {t('message.mcp-chat-welcome')}
+                </p>
+              </div>
             </div>
           ) : (
             <>
@@ -424,13 +441,13 @@ const McpChatPage = () => {
         </div>
 
         {/* Input */}
-        <div className="tw:border-t tw:border-[var(--color-border-primary)] tw:px-6 tw:py-4">
+        <div className="tw:px-6 tw:pb-5 tw:pt-3">
           <div className={inputWrapperClass}>
             <textarea
               className={textareaClass}
               data-testid="mcp-chat-input"
               disabled={isStreaming}
-              placeholder={t('label.type-a-message')}
+              placeholder={t('label.type-mcp-placeholder')}
               ref={textareaRef}
               rows={1}
               value={inputValue}

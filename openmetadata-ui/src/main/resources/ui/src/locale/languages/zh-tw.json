@@ -2236,6 +2236,7 @@
     "type-filed-name": "輸入 {{fieldName}}",
     "type-label": "類型：",
     "type-lowercase": "類型",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "Type Mismatches",
     "type-of": "類型",
     "type-to-confirm": "輸入 <0>{{text}}</0> 以確認",

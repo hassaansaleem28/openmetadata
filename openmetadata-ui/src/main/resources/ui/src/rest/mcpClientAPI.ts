@@ -138,7 +138,8 @@ export const listMessages = async (
 // ReadableStream instead.
 
 export async function* streamChat(
-  request: ChatStreamRequest
+  request: ChatStreamRequest,
+  signal?: AbortSignal
 ): AsyncGenerator<ChatStreamEvent> {
   const token = await getOidcToken();
   const basePath = getBasePath();
@@ -151,6 +152,7 @@ export async function* streamChat(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(request),
+    signal,
   });
 
   if (!response.ok || !response.body) {
@@ -175,17 +177,22 @@ export async function* streamChat(
       buffer = lines.pop() ?? '';
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) {
+        if (!line.startsWith('data:')) {
           continue;
         }
 
-        const payload = line.slice(6).trim();
+        // SSE spec allows both "data: value" and "data:value"
+        const payload = line.slice(line.startsWith('data: ') ? 6 : 5).trim();
 
         if (payload === '[DONE]') {
           return;
         }
 
-        yield JSON.parse(payload) as ChatStreamEvent;
+        try {
+          yield JSON.parse(payload) as ChatStreamEvent;
+        } catch {
+          // malformed SSE payload — skip
+        }
       }
     }
   } finally {

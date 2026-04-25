@@ -2236,6 +2236,7 @@
     "type-filed-name": "Digite {{fieldName}}",
     "type-label": "Tipo:",
     "type-lowercase": "tipo",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "Incompatibilidades de tipo",
     "type-of": "Tipo De",
     "type-to-confirm": "Digite <0>{{text}}</0> para confirmar",

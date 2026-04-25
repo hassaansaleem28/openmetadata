@@ -2236,6 +2236,7 @@
     "type-filed-name": "Typ {{fieldName}}",
     "type-label": "Typ:",
     "type-lowercase": "typ",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "Typkonflikte",
     "type-of": "Typ von",
     "type-to-confirm": "Geben Sie <0>{{text}}</0> ein, um zu bestätigen",

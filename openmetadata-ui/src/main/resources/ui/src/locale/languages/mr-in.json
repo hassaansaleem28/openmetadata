@@ -2236,6 +2236,7 @@
     "type-filed-name": "प्रकार {{fieldName}}",
     "type-label": "Type:",
     "type-lowercase": "प्रकार",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "Type Mismatches",
     "type-of": "याचा प्रकार",
     "type-to-confirm": "पुष्टी करण्यासाठी <0>{{text}}</0> टाइप करा",

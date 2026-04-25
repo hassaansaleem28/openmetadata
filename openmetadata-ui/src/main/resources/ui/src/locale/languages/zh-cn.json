@@ -2236,6 +2236,7 @@
     "type-filed-name": "{{fieldName}}类型",
     "type-label": "类型：",
     "type-lowercase": "类型",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "类型不匹配",
     "type-of": "类型",
     "type-to-confirm": "输入<0>{{text}}</0>进行确认",

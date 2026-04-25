@@ -2236,6 +2236,7 @@
     "type-filed-name": "اكتب {{fieldName}}",
     "type-label": "النوع:",
     "type-lowercase": "النوع",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "Type Mismatches",
     "type-of": "نوع من",
     "type-to-confirm": "اكتب <0>{{text}}</0> للتأكيد",

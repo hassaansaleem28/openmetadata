@@ -2236,6 +2236,7 @@
     "type-filed-name": "ประเภท {{fieldName}}",
     "type-label": "Type:",
     "type-lowercase": "ประเภท",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "Type Mismatches",
     "type-of": "ประเภทของ",
     "type-to-confirm": "พิมพ์ <0>{{text}}</0> เพื่อยืนยัน",

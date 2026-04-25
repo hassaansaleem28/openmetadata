@@ -2236,6 +2236,7 @@
     "type-filed-name": "{{fieldName}} Türü",
     "type-label": "Type:",
     "type-lowercase": "tür",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "Type Mismatches",
     "type-of": "Türü",
     "type-to-confirm": "Onaylamak için <0>{{text}}</0> yazın",

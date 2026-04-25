@@ -2236,6 +2236,7 @@
     "type-filed-name": "タイプ {{fieldName}}",
     "type-label": "タイプ:",
     "type-lowercase": "タイプ",
+    "type-mcp-placeholder": "What do you want?",
     "type-mismatches": "タイプの不一致",
     "type-of": "タイプ",
     "type-to-confirm": "<0>{{text}}</0> と入力して確認",
