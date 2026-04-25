@@ -119,9 +119,21 @@ $$
 $$section
 ### Wallet Content $(id="walletContent")
 
-Base64-encoded wallet zip content.
+Base64-encoded wallet zip content. Recommended for Docker/Kubernetes deployments where you cannot mount wallet files onto the ingestion pod.
 
-Use this for a fully UI-driven setup. OpenMetadata decodes and extracts the wallet at runtime, so you do not need to pre-provision wallet files on the host.
+**How to generate:**
+
+Linux:
+```bash
+base64 -w 0 Wallet_mydb.zip
+```
+
+macOS:
+```bash
+base64 -i Wallet_mydb.zip
+```
+
+Copy the output and paste it into this field. OpenMetadata stores it as a secret, then decodes and extracts it at runtime inside the pod — no volume mounts or pre-provisioning needed.
 $$
 
 $$section

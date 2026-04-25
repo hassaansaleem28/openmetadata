@@ -80,7 +80,7 @@
         },
         "walletContent": {
           "title": "Wallet Content",
-          "description": "Base64-encoded Oracle wallet zip content. If provided, OpenMetadata extracts it at runtime.",
+          "description": "Base64-encoded Oracle wallet zip content. Recommended for Docker/Kubernetes: download the wallet zip from Oracle Cloud Console, encode it with 'base64 -w 0 Wallet_mydb.zip' (Linux) or 'base64 -i Wallet_mydb.zip' (macOS), and paste the result here. OpenMetadata extracts it at runtime — no volume mounts needed.",
           "type": "string",
           "format": "password"
         },
